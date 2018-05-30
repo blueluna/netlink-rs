@@ -2,6 +2,10 @@
 name = "netlink"
 version = "0.1.0"
 authors = ["Erik Svensson <erik.public@gmail.com>"]
+description="Netlink library in Rust"
+license="MIT"
+repository="https://github.com/blueluna/netlink-rs"
+keywords = ["netlink"]
 
 [dependencies]
 libc = "0.2"
