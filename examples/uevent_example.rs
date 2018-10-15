@@ -1,9 +1,11 @@
 extern crate libc;
-extern crate netlink_rs;
+extern crate netlink_rust;
 extern crate mio;
 
+use netlink_rust as netlink;
+
 use std::collections::HashMap;
-use netlink_rs::{Socket, Protocol};
+use netlink::{Socket, Protocol};
 
 use mio::{Ready, Poll, PollOpt, Token, Events};
 use mio::unix::EventedFd;

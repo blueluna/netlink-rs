@@ -1,11 +1,13 @@
-extern crate netlink_rs;
+extern crate netlink_rust;
+
+use netlink_rust as netlink;
 
 use std::io;
 
-use netlink_rs::{Socket, Protocol, Message};
-use netlink_rs::route;
-use netlink_rs::route::InterfaceInformationMessage;
-use netlink_rs::generic;
+use netlink::{Socket, Protocol, Message};
+use netlink::route;
+use netlink::route::InterfaceInformationMessage;
+use netlink::generic;
 
 fn get_network_interfaces(socket: &mut Socket)
 {
