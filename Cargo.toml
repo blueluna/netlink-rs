@@ -1,5 +1,5 @@
 [package]
-name = "netlink"
+name = "netlink-rs"
 version = "0.1.0"
 authors = ["Erik Svensson <erik.public@gmail.com>"]
 description="Netlink library in Rust"
