@@ -7,7 +7,7 @@ use netlink_rust as netlink;
 use std::collections::HashMap;
 use netlink::{Socket, Protocol};
 
-use mio::{Ready, Poll, PollOpt, Token, Events};
+use mio::{Poll, PollOpt, EventSet, Token};
 use mio::unix::EventedFd;
 use std::os::unix::io::AsRawFd;
 
@@ -56,16 +56,15 @@ fn receive_messages(socket: &mut Socket)
 
 fn main() {
     const NETLINK: Token = Token(1);
-    let poll = Poll::new().unwrap();
+    let mut poll = Poll::new().unwrap();
     // When listening to uevents we need to provide the multicast group 1
     let mut socket = Socket::new_multicast(Protocol::KObjectUevent, 1).unwrap();
     // register socket in event loop
-    poll.register(&EventedFd(&socket.as_raw_fd()), NETLINK, Ready::readable(), PollOpt::edge()).unwrap();
-    let mut events = Events::with_capacity(1024);
+    poll.register(&EventedFd(&socket.as_raw_fd()), NETLINK, EventSet::readable(), PollOpt::edge()).unwrap();
     loop {
-        poll.poll(&mut events, None).unwrap();
-        for event in events.iter() {
-            match event.token() {
+        poll.poll(None).unwrap();
+        for event in poll.events() {
+            match event.token {
                 NETLINK => {
                     receive_messages(&mut socket);
                 },
