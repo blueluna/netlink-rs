@@ -253,17 +253,29 @@ impl Attribute {
     pub fn total_len(&self) -> usize {
         netlink_align(self.data.len() + 4)
     }
+    pub fn as_u8(&self) -> Result<u8> {
+        u8::parse(&self.data)
+    }
     pub fn as_u16(&self) -> Result<u16> {
         u16::parse(&self.data)
-    }
-    pub fn as_i32(&self) -> Result<i32> {
-        i32::parse(&self.data)
     }
     pub fn as_u32(&self) -> Result<u32> {
         u32::parse(&self.data)
     }
     pub fn as_u64(&self) -> Result<u64> {
         u64::parse(&self.data)
+    }
+    pub fn as_i8(&self) -> Result<i8> {
+        i8::parse(&self.data)
+    }
+    pub fn as_i16(&self) -> Result<i16> {
+        i16::parse(&self.data)
+    }
+    pub fn as_i32(&self) -> Result<i32> {
+        i32::parse(&self.data)
+    }
+    pub fn as_i64(&self) -> Result<i64> {
+        i64::parse(&self.data)
     }
     pub fn as_string(&self) -> Result<String> {
         match CStr::from_bytes_with_nul(&self.data) {
