@@ -20,7 +20,7 @@ fn get_network_interfaces(socket: &mut Socket)
         match message {
             Message::Data(m) => {
                 if m.header.identifier == route::FamilyId::NewLink {
-                    let msg = InterfaceInformationMessage::parse(&mut io::Cursor::new(m.data)).unwrap();
+                    let msg = InterfaceInformationMessage::read(&mut io::Cursor::new(m.data)).unwrap();
                     for attr in msg.attributes {
                         if attr.identifier == route::AddressFamilyAttribute::InterfaceName {
                             let name = attr.as_string().unwrap();

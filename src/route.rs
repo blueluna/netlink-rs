@@ -2,7 +2,7 @@ use std::io::{Read, Write, Seek};
 use libc;
 
 use errors::Result;
-use core::{Sendable, Attribute, parse_attributes,
+use core::{Sendable, Attribute, read_attributes,
     MessageFlags, NativeRead, NativeWrite, ConvertFrom};
 
 /// Family Id?!?
@@ -101,14 +101,14 @@ pub struct InterfaceInformationMessage {
 }
 
 impl InterfaceInformationMessage {
-    pub fn parse<R: Read + Seek>(reader: &mut R) -> Result<InterfaceInformationMessage> {
+    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<InterfaceInformationMessage> {
         let family = u8::read(reader)?;
         let _ = u8::read(reader)?;
         let kind = u16::read(reader)?;
         let index = i32::read(reader)?;
         let flags = u32::read(reader)?;
         let change = u32::read(reader)?;
-        let attributes = parse_attributes(reader);
+        let attributes = read_attributes(reader);
         Ok(InterfaceInformationMessage {
             family: family,
             kind: kind,

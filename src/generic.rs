@@ -72,11 +72,11 @@ impl Message {
             };
     }
 
-    pub fn parse<R: Read + Seek>(reader: &mut R) -> Result<Message> {
+    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Message> {
         let command = u8::read(reader)?;
         let version = u8::read(reader)?;
         let _ = u16::read(reader)?;
-        let attributes = core::parse_attributes(reader);
+        let attributes = core::read_attributes(reader);
         Ok(Message {
             family: 0xffff,
             command: command,
@@ -131,7 +131,7 @@ pub struct MultiCastGroup {
 impl MultiCastGroup {
     fn from_bytes(bytes: &[u8]) -> Result<MultiCastGroup>
     {
-        let attributes = core::parse_attributes(&mut io::Cursor::new(bytes));
+        let attributes = core::read_attributes(&mut io::Cursor::new(bytes));
         let mut group_name = String::new();
         let mut group_id = None;
         for attribute in attributes {
@@ -186,7 +186,7 @@ impl Family {
                     family_id = attr.as_u16()?;
                 }
                 AttributeId::MulticastGroups => {
-                    let mcs_attributes = core::parse_attributes(&mut io::Cursor::new(attr.as_bytes()));
+                    let mcs_attributes = core::read_attributes(&mut io::Cursor::new(attr.as_bytes()));
                     for mcs_attr in mcs_attributes {
                         groups.push(MultiCastGroup::from_bytes(&mcs_attr.as_bytes())?);
                     }
@@ -219,7 +219,7 @@ pub fn get_generic_families(socket: &mut core::Socket) -> Result<Vec<Family>>
         match message {
             core::Message::Data(m) => {
                 if FamilyId::from(m.header.identifier) == FamilyId::Control {
-                    let msg = Message::parse(&mut io::Cursor::new(m.data))?;
+                    let msg = Message::read(&mut io::Cursor::new(m.data))?;
                     families.push(Family::from_message(msg)?);
                 }
             },
@@ -246,7 +246,7 @@ pub fn get_generic_family(socket: &mut core::Socket, name: &str) -> Result<Famil
             match message {
                 core::Message::Data(m) => {
                     if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                        let msg = Message::parse(&mut io::Cursor::new(m.data))?;
+                        let msg = Message::read(&mut io::Cursor::new(m.data))?;
                         let family = Family::from_message(msg)?;
                         if family.name == name {
                             return Ok(family);

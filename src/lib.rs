@@ -12,7 +12,8 @@ pub mod generic;
 
 pub use errors::{Error, Result};
 pub use core::{HardwareAddress, Socket, Message, Attribute, Protocol,
-    MessageMode, parse_attributes, NativeRead, NativeWrite, ConvertFrom};
+    MessageMode, read_attributes, NativeRead, NativeWrite, NativeParse,
+    ConvertFrom};
 
 #[cfg(test)]
 mod tests {

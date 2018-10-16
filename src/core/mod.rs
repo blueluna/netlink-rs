@@ -128,7 +128,7 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn parse<R: Read + Seek>(reader: &mut R) -> Result<Header> {
+    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Header> {
         let length = u32::read(reader)?;
         let identifier = u16::read(reader)?;
         let flags = u16::read(reader)?;
@@ -192,7 +192,7 @@ pub struct DataMessage {
 }
 
 impl DataMessage {
-    pub fn parse<R: Read + Seek>(reader: &mut R, header: Header) -> Result<DataMessage> {
+    pub fn read<R: Read + Seek>(reader: &mut R, header: Header) -> Result<DataMessage> {
         let mut data = vec![0u8; header.data_length()];
         reader.read_exact(&mut data)?;
         Ok(DataMessage { header: header, data: data })
@@ -206,9 +206,9 @@ pub struct ErrorMessage {
 }
 
 impl ErrorMessage {
-    pub fn parse<R: Read + Seek>(reader: &mut R, header: Header) -> Result<ErrorMessage> {
+    pub fn read<R: Read + Seek>(reader: &mut R, header: Header) -> Result<ErrorMessage> {
         let code = i32::read(reader)?;
-        let original_header = Header::parse(reader)?;
+        let original_header = Header::read(reader)?;
         Ok(ErrorMessage { header: header, code: code,
             original_header: original_header })
     }
@@ -228,7 +228,7 @@ pub struct Attribute {
 impl Attribute {
     const HEADER_SIZE: u16 = 4;
 
-    pub fn parse<R: Read + Seek>(reader: &mut R) -> Result<Attribute> {
+    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Attribute> {
         let length = u16::read(reader)?;
         let padding = netlink_padding(length as usize) as i64;
         let data_length = (length - Attribute::HEADER_SIZE) as usize;
@@ -292,12 +292,12 @@ impl Attribute {
     }
 }
 
-pub fn parse_attributes<R: Read + Seek>(reader: &mut R) -> Vec<Attribute>
+pub fn read_attributes<R: Read + Seek>(reader: &mut R) -> Vec<Attribute>
 {
     let mut attrs = vec![];
     let mut run = true;
     while run {
-        match Attribute::parse(reader) {
+        match Attribute::read(reader) {
             Ok(attr) => { attrs.push(attr); },
             Err(_) => { run = false; },
         }
@@ -489,7 +489,7 @@ impl Socket {
         let mut pos = 0;
         while pos < bytes {
             reader.seek(SeekFrom::Start(pos as u64))?;
-            let header = Header::parse(&mut reader)?;
+            let header = Header::read(&mut reader)?;
             pos = pos + header.aligned_length();
             if !header.check_pid(self.local.pid) {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid PID").into());
@@ -501,7 +501,7 @@ impl Socket {
                 continue;
             }
             else if header.identifier == NLMSG_ERROR {
-                let emsg = ErrorMessage::parse(&mut reader, header)?;
+                let emsg = ErrorMessage::read(&mut reader, header)?;
                 if emsg.code != 0 {
                     return Err(io::Error::from_raw_os_error(-emsg.code).into());
                 }
@@ -514,7 +514,7 @@ impl Socket {
             }
             else {
                 let flags = MessageFlags::from_bits(header.flags).unwrap_or(MessageFlags::empty());
-                messages.push(Message::Data(DataMessage::parse(&mut reader, header)?));
+                messages.push(Message::Data(DataMessage::read(&mut reader, header)?));
                 if flags.contains(MessageFlags::MULTIPART) || self.acknowledge_expected {
                     more_messages = true;
                 }
