@@ -220,6 +220,7 @@ pub enum Message {
     Done,
 }
 
+#[derive(Clone)]
 pub struct Attribute {
     pub identifier: u16,
     data: Vec<u8>,

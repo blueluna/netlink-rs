@@ -52,6 +52,7 @@ extended_enum_default!(MulticastAttributeId, u16,
     Id => 2,
 );
 
+#[derive(Clone)]
 pub struct Message {
     pub family: u16,
     pub command: u8,
@@ -123,6 +124,7 @@ impl fmt::Display for Message {
 /// Netlink generic Multi-cast group
 /// 
 /// Contains identifier, name for a Netlink multi-cast group.
+#[derive(Clone)]
 pub struct MultiCastGroup {
     pub id: u32,
     pub name: String,
@@ -164,6 +166,7 @@ impl fmt::Display for MultiCastGroup {
 /// Netlink generic family
 /// 
 /// Contains identifier, name and multi-cast groups for a Netlink family.
+#[derive(Clone)]
 pub struct Family {
     pub id: u16,
     pub name: String,
@@ -199,6 +202,97 @@ impl Family {
         }
         Err(io::Error::new(io::ErrorKind::NotFound, "Family Not Found").into())
     }
+
+    pub fn from_name(socket: &mut core::Socket, name: &str)
+        -> Result<Family>
+    {
+        {
+            let mut tx_msg = Message::new(FamilyId::Control,
+                Command::GetFamily, MessageMode::Acknowledge);
+            tx_msg.attributes.push(
+                Attribute::new_string(AttributeId::FamilyName, name));
+            socket.send_message(&tx_msg)?;
+        }
+        loop {
+            let messages = socket.receive_messages()?;
+            if messages.is_empty() {
+                break;
+            }
+            for message in messages {
+                match message {
+                    core::Message::Data(m) => {
+                        if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
+                            let msg = Message::read(&mut io::Cursor::new(m.data))?;
+                            let family = Family::from_message(msg)?;
+                            if family.name == name {
+                                return Ok(family);
+                            }
+                        }
+                    },
+                    _ => (),
+                }
+            }
+        }
+        Err(io::Error::new(io::ErrorKind::NotFound,
+            "Generic family not found").into())
+    }
+
+    pub fn from_id<ID: Into<u16>>(socket: &mut core::Socket, id: ID)
+        -> Result<Family>
+    {
+        let id = id.into().clone();
+        {
+            let mut tx_msg = Message::new(FamilyId::Control,
+                Command::GetFamily, MessageMode::Acknowledge);
+            tx_msg.attributes.push(Attribute::new(AttributeId::FamilyId, id));
+            socket.send_message(&tx_msg)?;
+        }
+        loop {
+            let messages = socket.receive_messages()?;
+            if messages.is_empty() {
+                break;
+            }
+            for message in messages {
+                match message {
+                    core::Message::Data(m) => {
+                        if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
+                            let msg = Message::read(&mut io::Cursor::new(m.data))?;
+                            let family = Family::from_message(msg)?;
+                            if family.id == id {
+                                return Ok(family);
+                            }
+                        }
+                    },
+                    _ => (),
+                }
+            }
+        }
+        Err(io::Error::new(io::ErrorKind::NotFound, "Generic family not found").into())
+    }
+
+    pub fn all(socket: &mut core::Socket) -> Result<Vec<Family>>
+    {
+        {
+            let tx_msg = Message::new(FamilyId::Control, Command::GetFamily,
+                MessageMode::Dump);
+            socket.send_message(&tx_msg)?;
+        }
+        let messages = socket.receive_messages()?;
+        let mut families = vec![];
+        for message in messages {
+            match message {
+                core::Message::Data(m) => {
+                    if FamilyId::from(m.header.identifier) == FamilyId::Control {
+                        let msg = Message::read(&mut io::Cursor::new(m.data))?;
+                        families.push(Family::from_message(msg)?);
+                    }
+                },
+                core::Message::Acknowledge => (),
+                core::Message::Done => { break; }
+            }
+        }
+        return Ok(families)
+    }
 }
 
 impl fmt::Display for Family {
@@ -207,55 +301,3 @@ impl fmt::Display for Family {
     }
 }
 
-pub fn get_generic_families(socket: &mut core::Socket) -> Result<Vec<Family>>
-{
-    {
-        let tx_msg = Message::new(FamilyId::Control, Command::GetFamily, MessageMode::Dump);
-        socket.send_message(&tx_msg)?;
-    }
-    let messages = socket.receive_messages()?;
-    let mut families = vec![];
-    for message in messages {
-        match message {
-            core::Message::Data(m) => {
-                if FamilyId::from(m.header.identifier) == FamilyId::Control {
-                    let msg = Message::read(&mut io::Cursor::new(m.data))?;
-                    families.push(Family::from_message(msg)?);
-                }
-            },
-            core::Message::Acknowledge => (),
-            core::Message::Done => { break; }
-        }
-    }
-    return Ok(families)
-}
-
-pub fn get_generic_family(socket: &mut core::Socket, name: &str) -> Result<Family>
-{
-    {
-        let mut tx_msg = Message::new(FamilyId::Control, Command::GetFamily, MessageMode::Acknowledge);
-        tx_msg.attributes.push(Attribute::new_string(AttributeId::FamilyName, name));
-        socket.send_message(&tx_msg)?;
-    }
-    loop {
-        let messages = socket.receive_messages()?;
-        if messages.is_empty() {
-            break;
-        }
-        for message in messages {
-            match message {
-                core::Message::Data(m) => {
-                    if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                        let msg = Message::read(&mut io::Cursor::new(m.data))?;
-                        let family = Family::from_message(msg)?;
-                        if family.name == name {
-                            return Ok(family);
-                        }
-                    }
-                },
-                _ => (),
-            }
-        }
-    }
-    Err(io::Error::new(io::ErrorKind::NotFound, "Generic family not found").into())
-}

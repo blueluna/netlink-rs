@@ -50,18 +50,18 @@ fn main() {
     println!("----------------------------------------------------------------");
     get_network_interfaces(&mut rt_socket);
     println!("----------------------------------------------------------------");
-    println!("get_generic_families");
+    println!("get families");
     println!("----------------------------------------------------------------");
-    for family in generic::get_generic_families(&mut gen_socket).unwrap() {
+    for family in generic::Family::all(&mut gen_socket).unwrap() {
         println!("{}", family);
     }
     println!("----------------------------------------------------------------");
-    match generic::get_generic_family(&mut gen_socket, "nl80211") {
+    match generic::Family::from_name(&mut gen_socket, "nl80211") {
         Ok(id) => { println!("Found nl80211, {}", id); },
         Err(_) => { println!("Failed to find nl80211"); },
     }
     println!("----------------------------------------------------------------");
-    match generic::get_generic_family(&mut gen_socket, "HELLO_THERE") {
+    match generic::Family::from_name(&mut gen_socket, "HELLO_THERE") {
         Ok(id) => { println!("Found HELLO_THERE, {}", id); },
         Err(_) => { println!("Failed to find HELLO_THERE"); },
     }
