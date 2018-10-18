@@ -206,15 +206,15 @@ impl Attribute {
 
     pub fn parse_all(data: &[u8]) -> (usize, Vec<Attribute>)
     {
-        let mut consumed = 0usize;
+        let mut pos = 0usize;
         let mut attrs = vec![];
         loop {
-            match Attribute::parse(data) {
-                Ok(r) => { attrs.push(r.1); consumed += r.0; },
+            match Attribute::parse(&data[pos..]) {
+                Ok(r) => { attrs.push(r.1); pos += r.0; },
                 Err(_) => { break; },
             }
         }
-        (consumed, attrs)
+        (pos, attrs)
     }
 
     pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute {
