@@ -1,7 +1,9 @@
 use std::fmt;
 
-/// HardwareAddress is an eight octet identifier used for example as the
-/// MAC address for Ethernet (802.3), Bluetooth or Wi-Fi (802.11)
+/// HardwareAddress is an six octet identifier
+///
+/// HardwareAddress could be used for MAC address for Ethernet (802.3),
+/// Bluetooth or Wi-Fi (802.11) BSSID
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct HardwareAddress {
     value: [u8; 6],

@@ -2,8 +2,6 @@ extern crate netlink_rust;
 
 use netlink_rust as netlink;
 
-use std::io;
-
 use netlink::{Socket, Protocol, Message};
 use netlink::route;
 use netlink::route::InterfaceInformationMessage;
@@ -20,7 +18,7 @@ fn get_network_interfaces(socket: &mut Socket)
         match message {
             Message::Data(m) => {
                 if m.header.identifier == route::FamilyId::NewLink {
-                    let msg = InterfaceInformationMessage::read(&mut io::Cursor::new(m.data)).unwrap();
+                    let (_, msg) = InterfaceInformationMessage::parse(&m.data).unwrap();
                     for attr in msg.attributes {
                         if attr.identifier == route::AddressFamilyAttribute::InterfaceName {
                             let name = attr.as_string().unwrap();

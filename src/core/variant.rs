@@ -11,103 +11,72 @@ pub trait NativeRead: Sized {
     fn read<R: Read>(reader: &mut R) -> Result<Self>;
 }
 
-pub trait NativeWrite: Sized {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()>;
-}
-
-pub trait NativeParse: Sized {
-    fn parse(buffer: &[u8]) -> Result<Self>;
-}
-
-pub trait MultiValue: Sized {
-    fn read<R: Read>(reader: &mut R, size: usize) -> Result<Self>;
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()>;
-    fn size(&self) -> usize;
-}
-
 impl NativeRead for u8 {
     fn read<R: Read>(reader: &mut R) -> Result<Self> {
         Ok(reader.read_u8()?)
     }
 }
-impl NativeWrite for u8 {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write_u8(*self)?;
-        Ok(())
+impl NativeRead for i8 {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(reader.read_i8()?)
     }
 }
-impl NativeParse for u8 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<u8>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(buffer[0])
-    }
-}
-
 impl NativeRead for u16 {
     fn read<R: Read>(reader: &mut R) -> Result<Self> {
         Ok(reader.read_u16::<NativeEndian>()?)
     }
 }
-impl NativeWrite for u16 {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write_u16::<NativeEndian>(*self)?;
-        Ok(())
+impl NativeRead for i16 {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(reader.read_i16::<NativeEndian>()?)
     }
 }
-impl NativeParse for u16 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_u16(buffer))
-    }
-}
-
 impl NativeRead for u32 {
     fn read<R: Read>(reader: &mut R) -> Result<Self> {
         Ok(reader.read_u32::<NativeEndian>()?)
     }
 }
-impl NativeWrite for u32 {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write_u32::<NativeEndian>(*self)?;
-        Ok(())
+impl NativeRead for i32 {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(reader.read_i32::<NativeEndian>()?)
     }
 }
-impl NativeParse for u32 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_u32(buffer))
-    }
-}
-
 impl NativeRead for u64 {
     fn read<R: Read>(reader: &mut R) -> Result<Self> {
         Ok(reader.read_u64::<NativeEndian>()?)
     }
 }
-impl NativeWrite for u64 {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write_u64::<NativeEndian>(*self)?;
-        Ok(())
+impl NativeRead for i64 {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(reader.read_i64::<NativeEndian>()?)
     }
 }
-impl NativeParse for u64 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_u64(buffer))
+impl NativeRead for f32 {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(reader.read_f32::<NativeEndian>()?)
+    }
+}
+impl NativeRead for f64 {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(reader.read_f64::<NativeEndian>()?)
+    }
+}
+impl NativeRead for HardwareAddress {
+    fn read<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut data = vec![0u8; 6];
+        reader.read_exact(&mut data)?;
+        Ok(HardwareAddress::from(data.as_slice()))
     }
 }
 
-impl NativeRead for i8 {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(reader.read_i8()?)
+pub trait NativeWrite: Sized {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()>;
+}
+
+impl NativeWrite for u8 {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u8(*self)?;
+        Ok(())
     }
 }
 impl NativeWrite for i8 {
@@ -116,18 +85,10 @@ impl NativeWrite for i8 {
         Ok(())
     }
 }
-impl NativeParse for i8 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(buffer[0] as i8)
-    }
-}
-
-impl NativeRead for i16 {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(reader.read_i16::<NativeEndian>()?)
+impl NativeWrite for u16 {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u16::<NativeEndian>(*self)?;
+        Ok(())
     }
 }
 impl NativeWrite for i16 {
@@ -136,18 +97,10 @@ impl NativeWrite for i16 {
         Ok(())
     }
 }
-impl NativeParse for i16 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_i16(buffer))
-    }
-}
-
-impl NativeRead for i32 {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(reader.read_i32::<NativeEndian>()?)
+impl NativeWrite for u32 {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u32::<NativeEndian>(*self)?;
+        Ok(())
     }
 }
 impl NativeWrite for i32 {
@@ -156,18 +109,10 @@ impl NativeWrite for i32 {
         Ok(())
     }
 }
-impl NativeParse for i32 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_i32(buffer))
-    }
-}
-
-impl NativeRead for i64 {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(reader.read_i64::<NativeEndian>()?)
+impl NativeWrite for u64 {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u64::<NativeEndian>(*self)?;
+        Ok(())
     }
 }
 impl NativeWrite for i64 {
@@ -176,38 +121,10 @@ impl NativeWrite for i64 {
         Ok(())
     }
 }
-impl NativeParse for i64 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_i64(buffer))
-    }
-}
-
-impl NativeRead for f32 {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(reader.read_f32::<NativeEndian>()?)
-    }
-}
 impl NativeWrite for f32 {
     fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_f32::<NativeEndian>(*self)?;
         Ok(())
-    }
-}
-impl NativeParse for f32 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_f32(buffer))
-    }
-}
-
-impl NativeRead for f64 {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(reader.read_f64::<NativeEndian>()?)
     }
 }
 impl NativeWrite for f64 {
@@ -216,35 +133,92 @@ impl NativeWrite for f64 {
         Ok(())
     }
 }
-impl NativeParse for f64 {
-    fn parse(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
-        }
-        Ok(NativeEndian::read_f64(buffer))
-    }
-}
-
-impl NativeRead for HardwareAddress {
-    fn read<R: Read>(reader: &mut R) -> Result<Self> {
-        let mut data = vec![0u8; 6];
-        reader.read_exact(&mut data)?;
-        Ok(HardwareAddress::from(data.as_slice()))
-    }
-}
 impl NativeWrite for HardwareAddress {
     fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write(&self.bytes())?;
         Ok(())
     }
 }
-impl NativeParse for HardwareAddress {
+
+pub trait NativeParse: Sized {
     fn parse(buffer: &[u8]) -> Result<Self> {
         if buffer.len() < mem::size_of::<Self>() {
-            return Err(Error::new(ErrorKind::InvalidData, "").into());
+            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
-        Ok(HardwareAddress::from(&buffer[0..6]))
+        Ok(Self::parse_unchecked(buffer))
     }
+    fn parse_unchecked(buffer: &[u8]) -> Self;
+}
+
+impl NativeParse for u8 {
+    fn parse_unchecked(buffer: &[u8]) -> Self {
+        buffer[0]
+    }
+}
+impl NativeParse for i8 {
+    fn parse_unchecked(buffer: &[u8]) -> Self {
+        buffer[0] as i8
+    }
+}
+impl NativeParse for u16 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_u16(buffer)
+    }
+}
+impl NativeParse for i16 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_i16(buffer)
+    }
+}
+impl NativeParse for u32 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_u32(buffer)
+    }
+}
+impl NativeParse for i32 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_i32(buffer)
+    }
+}
+impl NativeParse for u64 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_u64(buffer)
+    }
+}
+impl NativeParse for i64 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_i64(buffer)
+    }
+}
+impl NativeParse for f32 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_f32(buffer)
+    }
+}
+impl NativeParse for f64 {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        NativeEndian::read_f64(buffer)
+    }
+}
+impl NativeParse for HardwareAddress {
+    fn parse_unchecked(buffer: &[u8]) -> Self
+    {
+        HardwareAddress::from(&buffer[0..6])
+    }
+}
+
+pub trait MultiValue: Sized {
+    fn read<R: Read>(reader: &mut R, size: usize) -> Result<Self>;
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()>;
+    fn size(&self) -> usize;
 }
 
 impl MultiValue for String {

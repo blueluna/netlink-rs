@@ -1,14 +1,14 @@
 use std::fmt;
 use std::io;
-use std::io::{Read, Seek, Write};
+use std::io::{Write};
 
 use std::convert::{From, Into};
 
 use errors::Result;
 
 use core;
-use core::{Attribute, Sendable, MessageFlags, MessageMode,
-    NativeRead, NativeWrite, ConvertFrom};
+use core::{Attribute, Sendable, MessageFlags, MessageMode, NativeWrite,
+    ConvertFrom};
 
 extended_enum!(FamilyId, u16,
     Control => 16,
@@ -52,6 +52,7 @@ extended_enum_default!(MulticastAttributeId, u16,
     Id => 2,
 );
 
+/// Netlink generic message
 #[derive(Clone)]
 pub struct Message {
     pub family: u16,
@@ -62,6 +63,7 @@ pub struct Message {
 }
 
 impl Message {
+    /// Create a new message
     pub fn new<F: Into<u16>, C: Into<u8>, M: Into<MessageFlags>>
         (family: F, command: C, mode: M) -> Message {
         return Message {
@@ -73,24 +75,29 @@ impl Message {
             };
     }
 
-    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Message> {
-        let command = u8::read(reader)?;
-        let version = u8::read(reader)?;
-        let _ = u16::read(reader)?;
-        let attributes = core::read_attributes(reader);
-        Ok(Message {
-            family: 0xffff,
-            command: command,
-            version: version,
-            flags: MessageFlags::from_bits_truncate(0),
-            attributes: attributes,
-            })
+    /// Parse message from slice
+    pub fn parse(data: &[u8]) -> Result<(usize, Message)> {
+        let command = data[0];
+        let version = data[1];
+        // skip reserved u16
+        let (consumed, attributes) = core::Attribute::parse_all(&data[4..]);
+        Ok((consumed + 4usize,
+            Message {
+                family: 0xffff,
+                command: command,
+                version: version,
+                flags: MessageFlags::from_bits_truncate(0),
+                attributes: attributes,
+            }))
     }
 
+    /// Get the message family as u16
     pub fn family(&self) -> u16 { self.family.clone().into() }
 
+    /// Set message flags
     pub fn set_flags(&mut self, flags: MessageFlags) { self.flags = flags; }
 
+    // Append a attribute to the message
     pub fn append_attribute(&mut self, attr: Attribute)
     {
         self.attributes.push(attr);
@@ -123,17 +130,17 @@ impl fmt::Display for Message {
 
 /// Netlink generic Multi-cast group
 /// 
-/// Contains identifier, name for a Netlink multi-cast group.
+/// Maps a identifier with a name.
 #[derive(Clone)]
-pub struct MultiCastGroup {
+pub struct MulticastGroup {
     pub id: u32,
     pub name: String,
 }
 
-impl MultiCastGroup {
-    fn from_bytes(bytes: &[u8]) -> Result<MultiCastGroup>
+impl MulticastGroup {
+    fn from_bytes(bytes: &[u8]) -> Result<MulticastGroup>
     {
-        let attributes = core::read_attributes(&mut io::Cursor::new(bytes));
+        let (_, attributes) = core::Attribute::parse_all(bytes);
         let mut group_name = String::new();
         let mut group_id = None;
         for attribute in attributes {
@@ -148,7 +155,7 @@ impl MultiCastGroup {
             }
         }
         if let Some(id) = group_id {
-            return Ok(MultiCastGroup {
+            return Ok(MulticastGroup {
                 id: id,
                 name: group_name,
             });
@@ -157,9 +164,9 @@ impl MultiCastGroup {
     }
 }
 
-impl fmt::Display for MultiCastGroup {
+impl fmt::Display for MulticastGroup {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MultiCast Group: {} Name: {}", self.id, self.name)
+        write!(f, "Multicast Group: {} Name: {}", self.id, self.name)
     }
 }
 
@@ -170,7 +177,7 @@ impl fmt::Display for MultiCastGroup {
 pub struct Family {
     pub id: u16,
     pub name: String,
-    pub multicast_groups: Vec<MultiCastGroup>,
+    pub multicast_groups: Vec<MulticastGroup>,
 }
 
 impl Family {
@@ -189,16 +196,21 @@ impl Family {
                     family_id = attr.as_u16()?;
                 }
                 AttributeId::MulticastGroups => {
-                    let mcs_attributes = core::read_attributes(&mut io::Cursor::new(attr.as_bytes()));
+                    let (_, mcs_attributes) = core::Attribute::parse_all(
+                        &attr.as_bytes());
                     for mcs_attr in mcs_attributes {
-                        groups.push(MultiCastGroup::from_bytes(&mcs_attr.as_bytes())?);
+                        groups.push(MulticastGroup::from_bytes(
+                            &mcs_attr.as_bytes())?);
                     }
                 }
                 _ => {}
             }
         }
         if family_id > 0 {
-            return Ok(Family { id: family_id, name: family_name, multicast_groups: groups });
+            return Ok(Family {
+                id: family_id,
+                name: family_name,
+                multicast_groups: groups });
         }
         Err(io::Error::new(io::ErrorKind::NotFound, "Family Not Found").into())
     }
@@ -221,8 +233,9 @@ impl Family {
             for message in messages {
                 match message {
                     core::Message::Data(m) => {
-                        if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                            let msg = Message::read(&mut io::Cursor::new(m.data))?;
+                        if FamilyId::convert_from(m.header.identifier) ==
+                            Some(FamilyId::Control) {
+                            let (_, msg) = Message::parse(&m.data)?;
                             let family = Family::from_message(msg)?;
                             if family.name == name {
                                 return Ok(family);
@@ -256,7 +269,7 @@ impl Family {
                 match message {
                     core::Message::Data(m) => {
                         if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                            let msg = Message::read(&mut io::Cursor::new(m.data))?;
+                            let (_, msg) = Message::parse(&m.data)?;
                             let family = Family::from_message(msg)?;
                             if family.id == id {
                                 return Ok(family);
@@ -283,7 +296,7 @@ impl Family {
             match message {
                 core::Message::Data(m) => {
                     if FamilyId::from(m.header.identifier) == FamilyId::Control {
-                        let msg = Message::read(&mut io::Cursor::new(m.data))?;
+                        let (_, msg) = Message::parse(&m.data)?;
                         families.push(Family::from_message(msg)?);
                     }
                 },
@@ -301,3 +314,77 @@ impl fmt::Display for Family {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use libc;
+
+    #[test]
+    fn check_family_ids() {
+        assert_eq!(u16::from(FamilyId::Control), libc::GENL_ID_CTRL as u16);
+        assert_eq!(u16::from(FamilyId::VirtualFileSystemDiskQuota),
+            libc::GENL_ID_VFS_DQUOT as u16);
+        assert_eq!(u16::from(FamilyId::Raid), libc::GENL_ID_PMCRAID as u16);
+    }
+
+    #[test]
+    fn check_commands() {
+        assert_eq!(u8::from(Command::Unspecified),
+            libc::CTRL_CMD_UNSPEC as u8);
+        assert_eq!(u8::from(Command::NewFamily),
+            libc::CTRL_CMD_NEWFAMILY as u8);
+        assert_eq!(u8::from(Command::DelFamily),
+            libc::CTRL_CMD_DELFAMILY as u8);
+        assert_eq!(u8::from(Command::GetFamily),
+            libc::CTRL_CMD_GETFAMILY as u8);
+        assert_eq!(u8::from(Command::NewOps), libc::CTRL_CMD_NEWOPS as u8);
+        assert_eq!(u8::from(Command::DelOps), libc::CTRL_CMD_DELOPS as u8);
+        assert_eq!(u8::from(Command::GetOps), libc::CTRL_CMD_GETOPS as u8);
+        assert_eq!(u8::from(Command::NewMulticastGroup),
+            libc::CTRL_CMD_NEWMCAST_GRP as u8);
+        assert_eq!(u8::from(Command::DelMulticastGroup),
+            libc::CTRL_CMD_DELMCAST_GRP as u8);
+        assert_eq!(u8::from(Command::GetMulticastGroup),
+            libc::CTRL_CMD_GETMCAST_GRP as u8);
+    }
+
+    #[test]
+    fn check_attributes() {
+        assert_eq!(u16::from(AttributeId::Unspecified),
+            libc::CTRL_ATTR_UNSPEC as u16);
+        assert_eq!(u16::from(AttributeId::FamilyId),
+            libc::CTRL_ATTR_FAMILY_ID as u16);
+        assert_eq!(u16::from(AttributeId::FamilyName),
+            libc::CTRL_ATTR_FAMILY_NAME as u16);
+        assert_eq!(u16::from(AttributeId::Version),
+            libc::CTRL_ATTR_VERSION as u16);
+        assert_eq!(u16::from(AttributeId::HeaderSize),
+            libc::CTRL_ATTR_HDRSIZE as u16);
+        assert_eq!(u16::from(AttributeId::MaximumAttributes),
+            libc::CTRL_ATTR_MAXATTR as u16);
+        assert_eq!(u16::from(AttributeId::Operations),
+            libc::CTRL_ATTR_OPS as u16);
+        assert_eq!(u16::from(AttributeId::MulticastGroups),
+            libc::CTRL_ATTR_MCAST_GROUPS as u16);
+    }
+
+    #[test]
+    fn check_operation_attributes() {
+        assert_eq!(u16::from(OperationAttributeId::Unspecified),
+            libc::CTRL_ATTR_OP_UNSPEC as u16);
+        assert_eq!(u16::from(OperationAttributeId::Id),
+            libc::CTRL_ATTR_OP_ID as u16);
+        assert_eq!(u16::from(OperationAttributeId::Flags),
+            libc::CTRL_ATTR_OP_FLAGS as u16);
+    }
+
+    #[test]
+    fn check_multicast_attributes() {
+        assert_eq!(u16::from(MulticastAttributeId::Unspecified),
+            libc::CTRL_ATTR_MCAST_GRP_UNSPEC as u16);
+        assert_eq!(u16::from(MulticastAttributeId::Name),
+            libc::CTRL_ATTR_MCAST_GRP_NAME as u16);
+        assert_eq!(u16::from(MulticastAttributeId::Id),
+            libc::CTRL_ATTR_MCAST_GRP_ID as u16);
+    }
+}

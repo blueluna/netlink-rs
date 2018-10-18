@@ -1,4 +1,3 @@
-
 /// Creates an enum with various traits. 
 /// The first key-value pair is the default used if any conversion would fail.
 #[macro_export]
