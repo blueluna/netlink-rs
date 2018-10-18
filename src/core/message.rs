@@ -373,4 +373,66 @@ mod tests {
         assert_eq!(msg.original_header.sequence, u32::max_value());
         assert_eq!(msg.original_header.pid, 5u32);
     }
+
+    #[test]
+    fn parse_attribute()
+    {
+        let data = [
+            0x07, 0x00, // size
+            0x00, 0x10, // identifier
+            0x11, 0xaa, 0x55, // data
+            0xee, // padding
+            ];
+        let (used, attr) = Attribute::parse(&data).unwrap();
+        assert_eq!(used, 8);
+        assert_eq!(attr.data.len(), 3usize);
+        assert_eq!(attr.identifier, 0x1000u16);
+        assert_eq!(attr.data[0], 0x11);
+        assert_eq!(attr.data[1], 0xaa);
+        assert_eq!(attr.data[2], 0x55);
+
+        let data = [
+            0x08, 0x00, // size
+            0x00, 0x10, // identifier
+            0x11, 0xaa, 0x55, 0xee,// data
+            ];
+        let (used, attr) = Attribute::parse(&data).unwrap();
+        assert_eq!(used, 8);
+        assert_eq!(attr.data.len(), 4usize);
+        assert_eq!(attr.identifier, 0x1000u16);
+        assert_eq!(attr.data[0], 0x11);
+        assert_eq!(attr.data[1], 0xaa);
+        assert_eq!(attr.data[2], 0x55);
+        assert_eq!(attr.data[3], 0xee);
+    }
+
+    #[test]
+    fn parse_attributes()
+    {
+        let data = [
+            0x07, 0x00, // size
+            0x00, 0x10, // identifier
+            0x11, 0xaa, 0x55, // data
+            0xee, // padding
+            0x08, 0x00, // size
+            0x00, 0x10, // identifier
+            0x11, 0xaa, 0x55, 0xee,// data
+            ];
+        let (used, attrs) = Attribute::parse_all(&data);
+        assert_eq!(used, 16usize);
+        assert_eq!(attrs.len(), 2usize);
+
+        assert_eq!(attrs[0].data.len(), 3usize);
+        assert_eq!(attrs[0].identifier, 0x1000u16);
+        assert_eq!(attrs[0].data[0], 0x11);
+        assert_eq!(attrs[0].data[1], 0xaa);
+        assert_eq!(attrs[0].data[2], 0x55);
+
+        assert_eq!(attrs[1].data.len(), 4usize);
+        assert_eq!(attrs[1].identifier, 0x1000u16);
+        assert_eq!(attrs[1].data[0], 0x11);
+        assert_eq!(attrs[1].data[1], 0xaa);
+        assert_eq!(attrs[1].data[2], 0x55);
+        assert_eq!(attrs[1].data[3], 0xee);
+    }
 }
