@@ -2,7 +2,7 @@ use std::io::{Write, Error, ErrorKind};
 use libc;
 
 use errors::Result;
-use core::{Sendable, Attribute, MessageFlags, NativeParse, NativeWrite,
+use core::{Sendable, Attribute, MessageFlags, NativeUnpack, NativeWrite,
     ConvertFrom};
 
 /// Family Id?!?
@@ -106,12 +106,12 @@ impl InterfaceInformationMessage {
         if data.len() < 16 {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
-        let family = u8::parse_unchecked(&data[0..]);
+        let family = u8::unpack_unchecked(&data[0..]);
         // reserved u8
-        let kind = u16::parse_unchecked(&data[2..]);
-        let index = i32::parse_unchecked(&data[4..]);
-        let flags = u32::parse_unchecked(&data[8..]);
-        let change = u32::parse_unchecked(&data[12..]);
+        let kind = u16::unpack_unchecked(&data[2..]);
+        let index = i32::unpack_unchecked(&data[4..]);
+        let flags = u32::unpack_unchecked(&data[8..]);
+        let change = u32::unpack_unchecked(&data[12..]);
         let (used, attributes) = Attribute::parse_all(&data[16..]);
         Ok((used + 16, InterfaceInformationMessage {
             family: family,

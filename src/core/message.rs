@@ -6,7 +6,8 @@ use std::io;
 use std::io::{Write, Error, ErrorKind};
 use std::ffi::{CStr, CString};
 
-use core::variant::{NativeWrite, NativeParse};
+use core::variant::{NativeWrite};
+use core::pack::{NativeUnpack, NativePack};
 use core::hardware_address::HardwareAddress;
 
 bitflags! {
@@ -70,11 +71,11 @@ impl Header {
         if data.len() < Header::HEADER_SIZE {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
-        let length = u32::parse_unchecked(&data[..]);
-        let identifier = u16::parse_unchecked(&data[4..]);
-        let flags = u16::parse_unchecked(&data[6..]);
-        let sequence = u32::parse_unchecked(&data[8..]);
-        let pid = u32::parse_unchecked(&data[12..]);
+        let length = u32::unpack_unchecked(&data[..]);
+        let identifier = u16::unpack_unchecked(&data[4..]);
+        let flags = u16::unpack_unchecked(&data[6..]);
+        let sequence = u32::unpack_unchecked(&data[8..]);
+        let pid = u32::unpack_unchecked(&data[12..]);
         Ok((Header::HEADER_SIZE, Header {
             length: length,
             identifier: identifier,
@@ -161,7 +162,7 @@ impl ErrorMessage {
         if data.len() < size {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
-        let code = i32::parse_unchecked(data);
+        let code = i32::unpack_unchecked(data);
         let (_, original) = Header::parse(&data[4..])?;
         Ok((size,
             ErrorMessage { header: header, code: code,
@@ -192,8 +193,8 @@ impl Attribute {
         if data.len() < Attribute::HEADER_SIZE {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
-        let length = u16::parse_unchecked(data) as usize;
-        let identifier = u16::parse_unchecked(&data[2..]);
+        let length = u16::unpack_unchecked(data) as usize;
+        let identifier = u16::unpack_unchecked(&data[2..]);
 
         let padding = netlink_padding(length);
         if data.len() < (length + padding) {
@@ -240,28 +241,28 @@ impl Attribute {
     }
 
     pub fn as_u8(&self) -> Result<u8> {
-        u8::parse(&self.data)
+        u8::unpack(&self.data)
     }
     pub fn as_u16(&self) -> Result<u16> {
-        u16::parse(&self.data)
+        u16::unpack(&self.data)
     }
     pub fn as_u32(&self) -> Result<u32> {
-        u32::parse(&self.data)
+        u32::unpack(&self.data)
     }
     pub fn as_u64(&self) -> Result<u64> {
-        u64::parse(&self.data)
+        u64::unpack(&self.data)
     }
     pub fn as_i8(&self) -> Result<i8> {
-        i8::parse(&self.data)
+        i8::unpack(&self.data)
     }
     pub fn as_i16(&self) -> Result<i16> {
-        i16::parse(&self.data)
+        i16::unpack(&self.data)
     }
     pub fn as_i32(&self) -> Result<i32> {
-        i32::parse(&self.data)
+        i32::unpack(&self.data)
     }
     pub fn as_i64(&self) -> Result<i64> {
-        i64::parse(&self.data)
+        i64::unpack(&self.data)
     }
     pub fn as_string(&self) -> Result<String> {
         match CStr::from_bytes_with_nul(&self.data) {
@@ -276,7 +277,7 @@ impl Attribute {
         }
     }
     pub fn as_hardware_address(&self) -> Result<HardwareAddress> {
-        HardwareAddress::parse(&self.data)
+        HardwareAddress::unpack(&self.data)
     }
     pub fn as_bytes(&self) -> Vec<u8> {
         self.data.clone()
@@ -288,6 +289,13 @@ impl Attribute {
         self.identifier.write(writer)?;
         writer.write_all(&self.data)?;
         Ok(())
+    }
+
+    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let length = self.total_len() as u16;
+        let slice = length.pack(buffer)?;
+        let slice = self.identifier.pack(slice)?;
+        Ok(slice)
     }
 }
 
