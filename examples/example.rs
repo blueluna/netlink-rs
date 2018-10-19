@@ -2,10 +2,27 @@ extern crate netlink_rust;
 
 use netlink_rust as netlink;
 
-use netlink::{Socket, Protocol, Message};
+use netlink::{Socket, Protocol, Message, DataMessage};
 use netlink::route;
-use netlink::route::InterfaceInformationMessage;
+use netlink::route::{InterfaceInformationMessage, AddressFamilyAttribute};
 use netlink::generic;
+
+fn handle_message(message: &DataMessage)
+{
+    if message.header.identifier == route::FamilyId::NewLink {
+        let (_, msg) = InterfaceInformationMessage::parse(&message.data)
+            .unwrap();
+        for attr in msg.attributes {
+            if attr.identifier == AddressFamilyAttribute::InterfaceName {
+                let name = attr.as_string().unwrap();
+                println!("{}", name);
+            }
+        }
+    }
+    else {
+        println!("Header: {}", message.header);
+    }
+}
 
 fn get_network_interfaces(socket: &mut Socket)
 {
@@ -17,18 +34,7 @@ fn get_network_interfaces(socket: &mut Socket)
     for message in messages {
         match message {
             Message::Data(m) => {
-                if m.header.identifier == route::FamilyId::NewLink {
-                    let (_, msg) = InterfaceInformationMessage::parse(&m.data).unwrap();
-                    for attr in msg.attributes {
-                        if attr.identifier == route::AddressFamilyAttribute::InterfaceName {
-                            let name = attr.as_string().unwrap();
-                            println!("{}", name);
-                        }
-                    }
-                }
-                else {
-                    println!("Header: {}", m.header);
-                }
+                handle_message(&m);
             },
             Message::Acknowledge => {
                 println!("Acknowledge");

@@ -12,4 +12,5 @@ pub mod generic;
 
 pub use errors::{Error, Result};
 pub use core::{HardwareAddress, Socket, Message, Attribute, Protocol,
-    MessageMode, NativeRead, NativeWrite, NativeParse, ConvertFrom};
+    MessageMode, NativeRead, NativeWrite, NativeParse, ConvertFrom,
+    DataMessage, ErrorMessage};

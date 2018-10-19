@@ -19,7 +19,8 @@ fn parse_uevent(message: &str) -> HashMap<String, String>
     for arg in msg_iter {
         let key_val: Vec<&str> = arg.splitn(2, '=').collect();
         if key_val.len() == 2 {
-            arguments.insert(String::from(key_val[0]), String::from(key_val[1]));
+            arguments.insert(String::from(key_val[0]),
+                String::from(key_val[1]));
         }
     }
     return arguments;
@@ -58,9 +59,11 @@ fn main() {
     const NETLINK: Token = Token(1);
     let mut poll = Poll::new().unwrap();
     // When listening to uevents we need to provide the multicast group 1
-    let mut socket = Socket::new_multicast(Protocol::KObjectUevent, 1).unwrap();
+    let mut socket = Socket::new_multicast(Protocol::KObjectUevent, 1)
+        .unwrap();
     // register socket in event loop
-    poll.register(&EventedFd(&socket.as_raw_fd()), NETLINK, EventSet::readable(), PollOpt::edge()).unwrap();
+    poll.register(&EventedFd(&socket.as_raw_fd()), NETLINK,
+        EventSet::readable(), PollOpt::edge()).unwrap();
     loop {
         poll.poll(None).unwrap();
         for event in poll.events() {

@@ -31,7 +31,8 @@ extended_enum!(Protocol, i32,
 );
 
 pub use self::socket::{Socket, Sendable};
-pub use self::message::{Message, MessageFlags, MessageMode, Attribute};
+pub use self::message::{MessageFlags, MessageMode, Attribute,
+    Message, DataMessage, ErrorMessage};
 pub use self::hardware_address::HardwareAddress;
 pub use self::variant::{NativeRead, NativeWrite, NativeParse};
 

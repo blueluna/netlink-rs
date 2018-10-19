@@ -61,8 +61,10 @@ impl Socket {
     pub fn new_multicast(protocol: Protocol, groups: u32) -> Result<Socket>
     {
         let socket = system::netlink_socket(protocol as i32)?;
-        system::set_socket_option(socket, libc::SOL_SOCKET, libc::SO_SNDBUF, 32768)?;
-        system::set_socket_option(socket, libc::SOL_SOCKET, libc::SO_RCVBUF, 32768)?;
+        system::set_socket_option(socket,
+            libc::SOL_SOCKET, libc::SO_SNDBUF, 32768)?;
+        system::set_socket_option(socket,
+            libc::SOL_SOCKET, libc::SO_RCVBUF, 32768)?;
         let mut local_addr = system::Address {
             family: libc::AF_NETLINK as u16,
             _pad: 0,
@@ -166,7 +168,8 @@ impl Socket {
     {
         let mut iov = [
             libc::iovec {
-                iov_base: self.receive_buffer.as_mut_ptr() as *mut libc::c_void,
+                iov_base: self.receive_buffer.as_mut_ptr()
+                    as *mut libc::c_void,
                 iov_len: self.page_size,
             },
         ];

@@ -1,7 +1,6 @@
 use std::mem;
-use std::str;
+use std::ptr;
 use std::io::{Read, Write, Error, ErrorKind};
-use std::ffi::{CString, CStr};
 use core::hardware_address::HardwareAddress;
 use ::errors::Result;
 
@@ -215,37 +214,84 @@ impl NativeParse for HardwareAddress {
     }
 }
 
-pub trait MultiValue: Sized {
-    fn read<R: Read>(reader: &mut R, size: usize) -> Result<Self>;
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()>;
-    fn size(&self) -> usize;
+pub trait NativePack: Sized {
+    fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let type_size = mem::size_of::<Self>();
+        if buffer.len() < type_size {
+            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+        }
+        Self::pack_unchecked(&self, buffer);
+        Ok(&mut buffer[type_size..])
+    }
+    fn pack_unchecked(&self, buffer: &mut [u8]);
 }
 
-impl MultiValue for String {
-    fn read<R: Read>(reader: &mut R, size: usize) -> Result<Self> {
-        let mut data = vec![0u8; size];
-        reader.read_exact(&mut data)?;
-        match CStr::from_bytes_with_nul(&data) {
-            Ok(bytes) => {
-                let s = bytes.to_str()?;
-                Ok(String::from(s))
-            },
-            Err(_) => {
-                let s = str::from_utf8(&data)?;
-                Ok(String::from(s))
-            }
+impl NativePack for u8 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        buffer[0] = *self;
+    }
+}
+impl NativePack for i8 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        buffer[0] = *self as u8;
+    }
+}
+impl NativePack for u16 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_u16(buffer, *self);
+    }
+}
+impl NativePack for i16 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_i16(buffer, *self);
+    }
+}
+impl NativePack for u32 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_u32(buffer, *self);
+    }
+}
+impl NativePack for i32 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_i32(buffer, *self);
+    }
+}
+impl NativePack for u64 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_u64(buffer, *self);
+    }
+}
+impl NativePack for i64 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_i64(buffer, *self);
+    }
+}
+impl NativePack for f32 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_f32(buffer, *self);
+    }
+}
+impl NativePack for f64 {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        NativeEndian::write_f64(buffer, *self);
+    }
+}
+impl NativePack for HardwareAddress {
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        unsafe {
+            ptr::copy_nonoverlapping(self.as_ptr(), buffer.as_mut_ptr(), 6);
         }
-    }
-    
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        let c_string = CString::new((*self).clone())?;
-        let bytes = c_string.into_bytes_with_nul();
-        writer.write(&bytes)?;
-        Ok(())
-    }
-
-    fn size(&self) -> usize {
-        self.len() + 1
     }
 }
 
@@ -257,7 +303,9 @@ mod tests {
     use std::fmt;
     use std::cmp;
 
-    fn read_write_test<T: NativeRead + NativeWrite + NativeParse + fmt::Debug + cmp::PartialEq>(bytes: &[u8], value: T) {
+    fn read_write_test<T>(bytes: &[u8], value: T) 
+        where T: NativeRead + NativeWrite + fmt::Debug + cmp::PartialEq 
+    {
         let value_size = mem::size_of::<T>();
         assert_eq!(bytes.len(), mem::size_of::<T>());
         let mut reader = io::Cursor::new(bytes);
@@ -265,7 +313,20 @@ mod tests {
         let mut writer = io::Cursor::new(vec![0u8; value_size]);
         value.write(&mut writer).unwrap();
         assert_eq!(writer.into_inner(), Vec::from(bytes));
+    }
+
+    fn pack_unpack_test<T>(bytes: &[u8], value: T)
+        where T: NativePack + NativeParse + fmt::Debug + cmp::PartialEq + Sized
+    {
+        let value_size = mem::size_of::<T>();
+        assert_eq!(bytes.len(), value_size);
         assert_eq!(T::parse(bytes).unwrap(), value);
+        let mut buffer = vec![0u8; mem::size_of::<T>()];
+        {
+            let left = T::pack(&value, &mut buffer).unwrap();
+            assert_eq!(left.len(), 0);
+        }
+        assert_eq!(buffer, bytes);
     }
 
     #[test]
@@ -274,8 +335,18 @@ mod tests {
     }
 
     #[test]
+    fn pack_unpack_u8() {
+        pack_unpack_test(&[0x5a], 0x5au8);
+    }
+
+    #[test]
     fn read_write_i8() {
         read_write_test(&[0xa5], -91i8);
+    }
+
+    #[test]
+    fn pack_unpack_i8() {
+        pack_unpack_test(&[0xa5], -91i8);
     }
 
     #[test]
@@ -284,8 +355,38 @@ mod tests {
     }
 
     #[test]
+    fn pack_unpack_u16() {
+        pack_unpack_test(&[0x22, 0xaa], 0xaa22u16.to_le());
+    }
+
+    #[test]
+    fn read_write_i16() {
+        read_write_test(&[0x55, 0xaa], (-21931i16).to_le());
+    }
+
+    #[test]
+    fn pack_unpack_i16() {
+        pack_unpack_test(&[0x55, 0xaa], (-21931i16).to_le());
+    }
+
+    #[test]
     fn read_write_u32() {
         read_write_test(&[0x44, 0x33, 0x22, 0x11], 0x11223344u32.to_le());
+    }
+
+    #[test]
+    fn pack_unpack_u32() {
+        pack_unpack_test(&[0x44, 0x33, 0x22, 0x11], 0x11223344u32.to_le());
+    }
+
+    #[test]
+    fn read_write_i32() {
+        read_write_test(&[0x11, 0x22, 0x33, 0xa4], (-1540152815i32).to_le());
+    }
+
+    #[test]
+    fn pack_unpack_i32() {
+        pack_unpack_test(&[0x11, 0x22, 0x33, 0xa4], (-1540152815i32).to_le());
     }
 
     #[test]
@@ -295,18 +396,20 @@ mod tests {
     }
 
     #[test]
-    fn read_write_i16() {
-        read_write_test(&[0x55, 0xaa], (-21931i16).to_le());
-    }
-
-    #[test]
-    fn read_write_i32() {
-        read_write_test(&[0x11, 0x22, 0x33, 0xa4], (-1540152815i32).to_le());
+    fn pack_unpack_u64() {
+        pack_unpack_test(&[0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11],
+            0x1122334455667788u64.to_le());
     }
 
     #[test]
     fn read_write_i64() {
         read_write_test(&[0x11, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x88],
+            (-8637284766759618799i64).to_le());
+    }
+
+    #[test]
+    fn pack_unpack_i64() {
+        pack_unpack_test(&[0x11, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x88],
             (-8637284766759618799i64).to_le());
     }
 
@@ -318,78 +421,9 @@ mod tests {
     }
 
     #[test]
-    fn read_string() {
-        let bytes = vec![0xf0, 0x9f, 0x9b, 0xa0];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(String::read(&mut reader, 4).unwrap(), String::from("🛠"));
-
-        let bytes = vec![0xf0, 0x9f, 0x9b, 0xa0, 0x00];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(String::read(&mut reader, 5).unwrap(), String::from("🛠"));
-
-        let bytes = vec![0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x00];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(String::read(&mut reader, 6).unwrap(),
-            String::from("Hello"));
-        
-        let bytes = vec![0x48, 0x65, 0x6c, 0x6c, 0x6f];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(String::read(&mut reader, 5).unwrap(),
-            String::from("Hello"));
-
-        // Could this be an issue?
-        let bytes = vec![0x48, 0x65, 0x6c, 0x6c, 0x6f,
-            0x00, 0x00, 0x00, 0x00, 0x00];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(String::read(&mut reader, 10).unwrap(),
-            String::from("Hello\0\0\0\0\0"));
-    }
-
-    #[test]
-    fn write_string() {
-        let string = String::from("🛠");
-        let mut writer = io::Cursor::new(vec![0u8; 4]);
-        string.write(&mut writer).unwrap();
-        assert_eq!(writer.into_inner(), vec![0xf0, 0x9f, 0x9b, 0xa0, 0x00]);
-
-        let string = String::from("Hello");
-        let mut writer = io::Cursor::new(vec![0u8; 5]);
-        string.write(&mut writer).unwrap();
-        assert_eq!(writer.into_inner(), vec![0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x00]);
-    }
-}
-
-#[cfg(all(test, target_endian = "little"))]
-mod tests_le {
-    // Little endian specific tests
-    use std::io;
-    use super::*;
-
-    #[test]
-    fn read_f32() {
-        let bytes = vec![82, 15, 73, 192];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(f32::read(&mut reader).unwrap(), -3.14156);
-    }
-
-    #[test]
-    fn read_f64() {
-        let bytes = vec![105, 87, 20, 139, 10, 191, 5, 192];
-        let mut reader = io::Cursor::new(bytes);
-        assert_eq!(f64::read(&mut reader).unwrap(), -2.718281828459045);
-    }
-
-    #[test]
-    fn write_f32() {
-        let mut writer = io::Cursor::new(vec![0u8; 4]);
-        (-3.14156f32).write(&mut writer).unwrap();
-        assert_eq!(writer.into_inner(), vec![82, 15, 73, 192]);
-    }
-
-    #[test]
-    fn write_f64() {
-        let mut writer = io::Cursor::new(vec![0u8; 8]);
-        (-2.718281828459045f64).write(&mut writer).unwrap();
-        assert_eq!(writer.into_inner(), vec![105, 87, 20, 139, 10, 191, 5, 192]);
+    fn pack_unpack_hardware_address() {
+        let bytes = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let hwa = HardwareAddress::from(bytes.as_slice());
+        pack_unpack_test(bytes.as_slice(), hwa);
     }
 }

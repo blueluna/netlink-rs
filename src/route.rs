@@ -101,7 +101,8 @@ pub struct InterfaceInformationMessage {
 }
 
 impl InterfaceInformationMessage {
-    pub fn parse(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)> {
+    pub fn parse(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)>
+    {
         if data.len() < 16 {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }

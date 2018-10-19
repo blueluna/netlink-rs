@@ -217,12 +217,16 @@ impl Attribute {
         (pos, attrs)
     }
 
-    pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute {
+    pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute
+    {
         let c_string = CString::new(value).unwrap();
-        Attribute { identifier: identifier.into(), data: c_string.into_bytes_with_nul() }
+        Attribute { identifier: identifier.into(),
+            data: c_string.into_bytes_with_nul() }
     }
 
-    pub fn new<ID: Into<u16>, V: NativeWrite>(identifier: ID, value: V) -> Attribute {
+    pub fn new<ID: Into<u16>, V: NativeWrite>(identifier: ID, value: V)
+        -> Attribute
+    {
         let mut writer = io::Cursor::new(Vec::new());
         value.write(&mut writer).unwrap();
         Attribute { identifier: identifier.into(), data: writer.into_inner() }
