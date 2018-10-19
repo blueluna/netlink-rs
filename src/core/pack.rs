@@ -81,6 +81,15 @@ impl NativeUnpack for HardwareAddress {
         HardwareAddress::from(&buffer[0..6])
     }
 }
+impl NativeUnpack for Vec<u8> {
+    fn unpack(buffer: &[u8]) -> Result<Self> {
+        Ok(Self::unpack_unchecked(buffer))
+    }
+    fn unpack_unchecked(buffer: &[u8]) -> Self
+    {
+        buffer.to_vec()
+    }
+}
 
 pub trait NativePack: Sized {
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
@@ -162,7 +171,39 @@ impl NativePack for HardwareAddress {
         }
     }
 }
+impl NativePack for Vec<u8> {
+    fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let size = self.len();
+        if buffer.len() < size {
+            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+        }
+        Self::pack_unchecked(&self, buffer);
+        Ok(&mut buffer[size..])
+    }
+    fn pack_unchecked(&self, buffer: &mut [u8])
+    {
+        unsafe {
+            ptr::copy_nonoverlapping(self.as_ptr(), buffer.as_mut_ptr(),
+                self.len());
+        }
+    }
+}
 
+pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>)
+    -> Result<usize>
+{
+    let type_size = mem::size_of::<T>();
+    let size = type_size * v.len();
+    if buffer.len() < size {
+        return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+    }
+    let mut pos = 0usize;
+    for i in v {
+        i.pack_unchecked(&mut buffer[pos..]);
+        pos += type_size;
+    }
+    Ok(size)
+}
 
 #[cfg(test)]
 mod tests {
@@ -232,5 +273,21 @@ mod tests {
         let bytes = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
         let hwa = HardwareAddress::from(bytes.as_slice());
         pack_unpack_test(bytes.as_slice(), hwa);
+    }
+
+    #[test]
+    fn pack_unpack_any_vec() {
+        let v = vec![1u16, 2u16];
+        let mut buffer = vec![0u8; mem::size_of::<u16>() * v.len()];
+        let size = pack_vec(&mut buffer, &v).unwrap();
+        assert_eq!(size, 4usize);
+        assert_eq!(buffer, &[0x01, 0x00, 0x02, 0x00]);
+
+        let v = vec![1u32, 2u32];
+        let mut buffer = vec![0u8; mem::size_of::<u32>() * v.len()];
+        let size = pack_vec(&mut buffer, &v).unwrap();
+        assert_eq!(size, 8usize);
+        assert_eq!(buffer, &[0x01, 0x00, 0x00, 0x00,
+            0x02, 0x00, 0x00, 0x00]);
     }
 }

@@ -10,7 +10,7 @@ use netlink::generic;
 fn handle_message(message: &DataMessage)
 {
     if message.header.identifier == route::FamilyId::NewLink {
-        let (_, msg) = InterfaceInformationMessage::parse(&message.data)
+        let (_, msg) = InterfaceInformationMessage::unpack(&message.data)
             .unwrap();
         for attr in msg.attributes {
             if attr.identifier == AddressFamilyAttribute::InterfaceName {

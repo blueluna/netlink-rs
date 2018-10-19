@@ -2,7 +2,6 @@ use errors::Result;
 use std::fmt;
 use std::str;
 use std::mem::size_of;
-use std::io;
 use std::io::{Write, Error, ErrorKind};
 use std::ffi::{CStr, CString};
 
@@ -67,7 +66,7 @@ pub struct Header {
 impl Header {
     const HEADER_SIZE: usize = 16;
 
-    pub fn parse(data: &[u8]) -> Result<(usize, Header)> {
+    pub fn unpack(data: &[u8]) -> Result<(usize, Header)> {
         if data.len() < Header::HEADER_SIZE {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
@@ -128,6 +127,24 @@ impl fmt::Display for Header {
     }
 }
 
+impl NativePack for Header {
+    fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let slice = self.length.pack(buffer)?;
+        let slice = self.identifier.pack(slice)?;
+        let slice = self.flags.pack(slice)?;
+        let slice = self.sequence.pack(slice)?;
+        let slice = self.pid.pack(slice)?;
+        Ok(slice)
+    }
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
+        self.length.pack_unchecked(buffer);
+        self.identifier.pack_unchecked(&mut buffer[4..]);
+        self.flags.pack_unchecked(&mut buffer[6..]);
+        self.sequence.pack_unchecked(&mut buffer[8..]);
+        self.pid.pack_unchecked(&mut buffer[12..]);
+    }
+}
+
 pub struct DataMessage {
     pub header: Header,
     pub data: Vec<u8>,
@@ -135,7 +152,7 @@ pub struct DataMessage {
 
 /// Netlink data message
 impl DataMessage {
-    pub fn parse(data: &[u8], header: Header) -> Result<(usize, DataMessage)>
+    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, DataMessage)>
     {
         let size = header.data_length();
         let aligned_size = netlink_align(size);
@@ -145,6 +162,13 @@ impl DataMessage {
         Ok((aligned_size,
             DataMessage { header: header, data: (&data[..size]).to_vec() }
         ))
+    }
+
+    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let slice = self.header.pack(buffer)?;
+        let slice = self.data.pack(slice)?;
+        let padding = self.header.padding();
+        Ok(&mut slice[padding..])
     }
 }
 
@@ -156,17 +180,24 @@ pub struct ErrorMessage {
 }
 
 impl ErrorMessage {
-    pub fn parse(data: &[u8], header: Header) -> Result<(usize, ErrorMessage)>
+    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, ErrorMessage)>
     {
         let size = 4 + Header::HEADER_SIZE;
         if data.len() < size {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
         let code = i32::unpack_unchecked(data);
-        let (_, original) = Header::parse(&data[4..])?;
+        let (_, original) = Header::unpack(&data[4..])?;
         Ok((size,
             ErrorMessage { header: header, code: code,
                 original_header: original }))
+    }
+
+    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let slice = self.header.pack(buffer)?;
+        let slice = self.code.pack(slice)?;
+        let slice = self.original_header.pack(slice)?;
+        Ok(slice)
     }
 }
 
@@ -189,7 +220,7 @@ pub struct Attribute {
 impl Attribute {
     const HEADER_SIZE: usize = 4;
 
-    pub fn parse(data: &[u8]) -> Result<(usize, Attribute)> {
+    pub fn unpack(data: &[u8]) -> Result<(usize, Attribute)> {
         if data.len() < Attribute::HEADER_SIZE {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
@@ -205,12 +236,12 @@ impl Attribute {
                 Attribute { identifier: identifier, data: attr_data }))
     }
 
-    pub fn parse_all(data: &[u8]) -> (usize, Vec<Attribute>)
+    pub fn unpack_all(data: &[u8]) -> (usize, Vec<Attribute>)
     {
         let mut pos = 0usize;
         let mut attrs = vec![];
         loop {
-            match Attribute::parse(&data[pos..]) {
+            match Attribute::unpack(&data[pos..]) {
                 Ok(r) => { attrs.push(r.1); pos += r.0; },
                 Err(_) => { break; },
             }
@@ -225,19 +256,19 @@ impl Attribute {
             data: c_string.into_bytes_with_nul() }
     }
 
-    pub fn new<ID: Into<u16>, V: NativeWrite>(identifier: ID, value: V)
+    pub fn new<ID: Into<u16>, V: NativePack>(identifier: ID, value: V)
         -> Attribute
     {
-        let mut writer = io::Cursor::new(Vec::new());
-        value.write(&mut writer).unwrap();
-        Attribute { identifier: identifier.into(), data: writer.into_inner() }
+        let mut data = vec![0u8; size_of::<V>()];
+        value.pack_unchecked(&mut data);
+        Attribute { identifier: identifier.into(), data: data }
     }
 
     pub fn len(&self) -> u16 {
         self.data.len() as u16
     }
     pub fn total_len(&self) -> usize {
-        netlink_align(self.data.len() + Attribute::HEADER_SIZE)
+        self.data.len() + Attribute::HEADER_SIZE
     }
 
     pub fn as_u8(&self) -> Result<u8> {
@@ -290,12 +321,22 @@ impl Attribute {
         writer.write_all(&self.data)?;
         Ok(())
     }
+}
 
-    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+impl NativePack for Attribute {
+    fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let length = self.total_len() as u16;
         let slice = length.pack(buffer)?;
         let slice = self.identifier.pack(slice)?;
-        Ok(slice)
+        let slice = self.data.pack(slice)?;
+        let padding = netlink_padding(self.data.len());
+        Ok(&mut slice[padding..])
+    }
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
+        let length = self.total_len() as u16;
+        length.pack_unchecked(buffer);
+        self.identifier.pack_unchecked(&mut buffer[2..]);
+        self.data.pack_unchecked(&mut buffer[4..]);
     }
 }
 
@@ -304,7 +345,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_header()
+    fn unpack_header()
     {
         let data = [
             0x12, 0x00, 0x00, 0x00, // size
@@ -312,7 +353,7 @@ mod tests {
             0x10, 0x00, // flags
             0x01, 0x00, 0x00, 0x00, // sequence
             0x04, 0x00, 0x00, 0x00]; // pid
-        let (used, header) = Header::parse(&data).unwrap();
+        let (used, header) = Header::unpack(&data).unwrap();
         assert_eq!(used, Header::HEADER_SIZE);
         assert_eq!(header.length, 18u32);
         assert_eq!(header.length(), 18usize);
@@ -324,7 +365,31 @@ mod tests {
     }
 
     #[test]
-    fn parse_data_message()
+    fn pack_header()
+    {
+        let header = Header {
+            length: 18,
+            identifier: 0x1000,
+            flags: 0x0010,
+            sequence: 1,
+            pid: 4,
+        };
+        let mut buffer = [0u8; 32];
+        {
+            let slice = header.pack(&mut buffer).unwrap();
+            assert_eq!(slice.len(), 16usize);
+        }
+        let data = [
+            0x12, 0x00, 0x00, 0x00, // size
+            0x00, 0x10, // identifier
+            0x10, 0x00, // flags
+            0x01, 0x00, 0x00, 0x00, // sequence
+            0x04, 0x00, 0x00, 0x00]; // pid
+        assert_eq!(&buffer[..data.len()], data);
+    }
+
+    #[test]
+    fn unpack_data_message()
     {
         let data = [
             0x12, 0x00, 0x00, 0x00, // size
@@ -333,7 +398,7 @@ mod tests {
             0x01, 0x00, 0x00, 0x00, // sequence
             0x04, 0x00, 0x00, 0x00, // pid
             0xaa, 0x55, 0x00, 0x00]; // data with padding
-        let (used, header) = Header::parse(&data).unwrap();
+        let (used, header) = Header::unpack(&data).unwrap();
         assert_eq!(used, Header::HEADER_SIZE);
         assert_eq!(header.length, 18u32);
         assert_eq!(header.length(), 18usize);
@@ -343,7 +408,7 @@ mod tests {
         assert_eq!(header.flags, 0x0010u16);
         assert_eq!(header.sequence, 0x00000001u32);
         assert_eq!(header.pid, 0x00000004u32);
-        let (used, msg) = DataMessage::parse(&data[used..], header).unwrap();
+        let (used, msg) = DataMessage::unpack(&data[used..], header).unwrap();
         assert_eq!(used, 4usize);
         assert_eq!(msg.data.len(), 2usize);
         assert_eq!(msg.data[0], 0xaau8);
@@ -351,7 +416,35 @@ mod tests {
     }
 
     #[test]
-    fn parse_error_message()
+    fn pack_data_message()
+    {
+        let message = DataMessage {
+            header: Header {
+                length: 18,
+                identifier: 0x1000,
+                flags: 0x0010,
+                sequence: 0x12345678,
+                pid: 1,
+            },
+            data: vec![0xaa, 0x55],
+        };
+        let mut buffer = [0xffu8; 32];
+        {
+            let slice = message.pack(&mut buffer).unwrap();
+            assert_eq!(slice.len(), 12usize);
+        }
+        let data = [
+            0x12, 0x00, 0x00, 0x00, // size
+            0x00, 0x10, // identifier
+            0x10, 0x00, // flags
+            0x78, 0x56, 0x34, 0x12, // sequence
+            0x01, 0x00, 0x00, 0x00, // pid
+            0xaa, 0x55, 0xff, 0xff]; // padded data
+        assert_eq!(&buffer[..data.len()], data);
+    }
+
+    #[test]
+    fn unpack_error_message()
     {
         let data = [
             0x24, 0x00, 0x00, 0x00, // size
@@ -366,7 +459,7 @@ mod tests {
             0xff, 0xff, 0xff, 0xff, // sequence
             0x05, 0x00, 0x00, 0x00, // pid
             ];
-        let (used, header) = Header::parse(&data).unwrap();
+        let (used, header) = Header::unpack(&data).unwrap();
         assert_eq!(used, Header::HEADER_SIZE);
         assert_eq!(header.length, 36u32);
         assert_eq!(header.length(), 36usize);
@@ -376,7 +469,7 @@ mod tests {
         assert_eq!(header.flags, 0x0010u16);
         assert_eq!(header.sequence, 0x00000001u32);
         assert_eq!(header.pid, 0x00000004u32);
-        let (used, msg) = ErrorMessage::parse(&data[used..], header).unwrap();
+        let (used, msg) = ErrorMessage::unpack(&data[used..], header).unwrap();
         assert_eq!(used, 20usize);
         assert_eq!(msg.code, -1);
         assert_eq!(msg.original_header.length, 18u32);
@@ -387,7 +480,48 @@ mod tests {
     }
 
     #[test]
-    fn parse_attribute()
+    fn pack_error_message()
+    {
+        let message = ErrorMessage {
+            header: Header {
+                length: 36,
+                identifier: 0x1000,
+                flags: 0x0010,
+                sequence: 1,
+                pid: 4,
+            },
+            code: -1,
+            original_header: Header {
+                length: 18,
+                identifier: 0x1100,
+                flags: 0x0011,
+                sequence: 0xffffffff,
+                pid: 5,
+            },
+        };
+        let mut buffer = [0xffu8; 36];
+        {
+            let slice = message.pack(&mut buffer).unwrap();
+            assert_eq!(slice.len(), 0usize);
+        }
+        let data = [
+            0x24, 0x00, 0x00, 0x00, // size
+            0x00, 0x10, // identifier
+            0x10, 0x00, // flags
+            0x01, 0x00, 0x00, 0x00, // sequence
+            0x04, 0x00, 0x00, 0x00, // pid
+            0xff, 0xff, 0xff, 0xff, // error code
+            0x12, 0x00, 0x00, 0x00, // size
+            0x00, 0x11, // identifier
+            0x11, 0x00, // flags
+            0xff, 0xff, 0xff, 0xff, // sequence
+            0x05, 0x00, 0x00, 0x00u8, // pid
+            ];
+        assert_eq!(&buffer[..], &data[..]);
+    }
+
+    #[test]
+    fn unpack_attribute()
     {
         let data = [
             0x07, 0x00, // size
@@ -395,7 +529,7 @@ mod tests {
             0x11, 0xaa, 0x55, // data
             0xee, // padding
             ];
-        let (used, attr) = Attribute::parse(&data).unwrap();
+        let (used, attr) = Attribute::unpack(&data).unwrap();
         assert_eq!(used, 8);
         assert_eq!(attr.data.len(), 3usize);
         assert_eq!(attr.identifier, 0x1000u16);
@@ -408,7 +542,7 @@ mod tests {
             0x00, 0x10, // identifier
             0x11, 0xaa, 0x55, 0xee,// data
             ];
-        let (used, attr) = Attribute::parse(&data).unwrap();
+        let (used, attr) = Attribute::unpack(&data).unwrap();
         assert_eq!(used, 8);
         assert_eq!(attr.data.len(), 4usize);
         assert_eq!(attr.identifier, 0x1000u16);
@@ -419,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_attributes()
+    fn unpack_attributes()
     {
         let data = [
             0x07, 0x00, // size
@@ -430,7 +564,7 @@ mod tests {
             0x00, 0x10, // identifier
             0x11, 0xaa, 0x55, 0xee,// data
             ];
-        let (used, attrs) = Attribute::parse_all(&data);
+        let (used, attrs) = Attribute::unpack_all(&data);
         assert_eq!(used, 16usize);
         assert_eq!(attrs.len(), 2usize);
 
@@ -446,5 +580,26 @@ mod tests {
         assert_eq!(attrs[1].data[1], 0xaa);
         assert_eq!(attrs[1].data[2], 0x55);
         assert_eq!(attrs[1].data[3], 0xee);
+    }
+
+    #[test]
+    fn pack_attribute()
+    {
+        let data = [
+            0x07, 0x00, // size
+            0x55, 0x81, // identifier
+            0x11, 0xaa, 0x55, // data
+            0x00, // padding
+            ];
+        let attr = Attribute {
+            identifier: 0x8155,
+            data: vec![0x11, 0xaa, 0x55],
+        };
+        let mut buffer = [0u8; 32];
+        {
+            let slice = attr.pack(&mut buffer).unwrap();
+            assert_eq!(slice.len(), 24);
+        }
+        assert_eq!(&buffer[0..8], data);
     }
 }

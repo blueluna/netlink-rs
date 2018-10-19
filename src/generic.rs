@@ -1,13 +1,12 @@
 use std::fmt;
 use std::io;
-use std::io::{Write};
 
 use std::convert::{From, Into};
 
 use errors::Result;
 
 use core;
-use core::{Attribute, Sendable, MessageFlags, MessageMode, NativeWrite,
+use core::{Attribute, Sendable, MessageFlags, MessageMode, NativePack,
     ConvertFrom};
 
 extended_enum!(FamilyId, u16,
@@ -75,12 +74,12 @@ impl Message {
             };
     }
 
-    /// Parse message from slice
-    pub fn parse(data: &[u8]) -> Result<(usize, Message)> {
+    /// unpack message from slice
+    pub fn unpack(data: &[u8]) -> Result<(usize, Message)> {
         let command = data[0];
         let version = data[1];
         // skip reserved u16
-        let (consumed, attributes) = core::Attribute::parse_all(&data[4..]);
+        let (consumed, attributes) = core::Attribute::unpack_all(&data[4..]);
         Ok((consumed + 4usize,
             Message {
                 family: 0xffff,
@@ -105,14 +104,13 @@ impl Message {
 }
 
 impl Sendable for Message {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.command.write(writer)?;
-        self.version.write(writer)?;
-        0u16.write(writer)?;
-        for attr in self.attributes.iter() {
-            attr.write(writer)?;
-        }
-        Ok(())
+    fn pack(&self, data: &mut [u8]) -> Result<usize>
+    {
+        let slice = self.command.pack(data)?;
+        let slice = self.version.pack(slice)?;
+        let slice = 0u16.pack(slice)?;
+        let size = core::pack_vec(slice, &self.attributes)?;
+        Ok(size + 4)
     }
     fn message_type(&self) -> u16 { self.family.clone().into() }
     fn query_flags(&self) -> MessageFlags { self.flags }
@@ -140,7 +138,7 @@ pub struct MulticastGroup {
 impl MulticastGroup {
     fn from_bytes(bytes: &[u8]) -> Result<MulticastGroup>
     {
-        let (_, attributes) = core::Attribute::parse_all(bytes);
+        let (_, attributes) = core::Attribute::unpack_all(bytes);
         let mut group_name = String::new();
         let mut group_id = None;
         for attribute in attributes {
@@ -196,7 +194,7 @@ impl Family {
                     family_id = attr.as_u16()?;
                 }
                 AttributeId::MulticastGroups => {
-                    let (_, mcs_attributes) = core::Attribute::parse_all(
+                    let (_, mcs_attributes) = core::Attribute::unpack_all(
                         &attr.as_bytes());
                     for mcs_attr in mcs_attributes {
                         groups.push(MulticastGroup::from_bytes(
@@ -235,7 +233,7 @@ impl Family {
                     core::Message::Data(m) => {
                         if FamilyId::convert_from(m.header.identifier) ==
                             Some(FamilyId::Control) {
-                            let (_, msg) = Message::parse(&m.data)?;
+                            let (_, msg) = Message::unpack(&m.data)?;
                             let family = Family::from_message(msg)?;
                             if family.name == name {
                                 return Ok(family);
@@ -269,7 +267,7 @@ impl Family {
                 match message {
                     core::Message::Data(m) => {
                         if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                            let (_, msg) = Message::parse(&m.data)?;
+                            let (_, msg) = Message::unpack(&m.data)?;
                             let family = Family::from_message(msg)?;
                             if family.id == id {
                                 return Ok(family);
@@ -296,7 +294,7 @@ impl Family {
             match message {
                 core::Message::Data(m) => {
                     if FamilyId::from(m.header.identifier) == FamilyId::Control {
-                        let (_, msg) = Message::parse(&m.data)?;
+                        let (_, msg) = Message::unpack(&m.data)?;
                         families.push(Family::from_message(msg)?);
                     }
                 },

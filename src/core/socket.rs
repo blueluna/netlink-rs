@@ -1,6 +1,5 @@
 use std::mem::size_of;
 use std::io;
-use std::io::{Write, Seek, SeekFrom};
 use std::os::unix::io::{RawFd, AsRawFd};
 
 use libc;
@@ -9,12 +8,12 @@ use errors::Result;
 
 use core::Protocol;
 use core::system;
-use core::variant::{NativeWrite};
+use core::pack::{NativePack};
 use core::message::{MessageFlags, Header, ErrorMessage, DataMessage,
     Message, netlink_align};
 
 pub trait Sendable {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()>;
+    fn pack(&self, data: &mut [u8]) -> Result<usize>;
     fn message_type(&self) -> u16;
     fn query_flags(&self) -> MessageFlags;
 }
@@ -134,24 +133,25 @@ impl Socket {
     /// Send the provided package on the socket
     pub fn send_message<S: Sendable>(&mut self, payload: &S) -> Result<usize>
     {
-        self.send_buffer.clear();
-        let mut writer = io::Cursor::new(vec![0u8; self.page_size]);
-        let hdr_size = netlink_align(size_of::<Header>());
-        writer.seek(SeekFrom::Start(hdr_size as u64))?;
-        payload.write(&mut writer)?;
-        let payload_size = writer.seek(SeekFrom::Current(0))? as usize;
-        writer.seek(SeekFrom::Start(0))?;
-        (payload_size as u32).write(&mut writer)?;
-        payload.message_type().write(&mut writer)?;
+        let hdr_size = size_of::<Header>();
         let flags = payload.query_flags();
-        flags.bits().write(&mut writer)?;
-        self.sequence_next.write(&mut writer)?;
-        self.local.pid.write(&mut writer)?;
+        let payload_size = payload.pack(&mut self.send_buffer[hdr_size..])?;
+        let size = hdr_size + payload_size;
+        let hdr = Header {
+            length: size as u32,
+            identifier: payload.message_type(),
+            flags: flags.bits(),
+            sequence: self.sequence_next,
+            pid: self.local.pid,
+        };
+        {
+            let _slice = hdr.pack(&mut self.send_buffer[..hdr_size])?;
+        }
 
         let mut iov = [
             libc::iovec {
-                iov_base: writer.get_mut().as_mut_ptr() as *mut libc::c_void,
-                iov_len: payload_size,
+                iov_base: self.send_buffer.as_mut_ptr() as *mut libc::c_void,
+                iov_len: size,
             },
         ];
 
@@ -209,7 +209,7 @@ impl Socket {
                     if bytes == 0 {
                         break;
                     }
-                    more_messages = self.parse_data(bytes,
+                    more_messages = self.unpack_data(bytes,
                         &mut result_messages)?;
                 }
             }
@@ -217,14 +217,14 @@ impl Socket {
         Ok(result_messages)
     }
 
-    fn parse_data(&self, bytes: usize, messages: &mut Vec<Message>)
+    fn unpack_data(&self, bytes: usize, messages: &mut Vec<Message>)
         -> Result<bool>
     {
         let mut more_messages = false;
         let data = &self.receive_buffer[..bytes];
         let mut pos = 0;
         while pos < bytes {
-            let (used, header) = Header::parse(&data[pos..])?;
+            let (used, header) = Header::unpack(&data[pos..])?;
             pos = pos + used;
             if !header.check_pid(self.local.pid) {
                 return Err(io::Error::new(io::ErrorKind::InvalidData,
@@ -238,7 +238,7 @@ impl Socket {
                 continue;
             }
             else if header.identifier == NLMSG_ERROR {
-                let (used, emsg) = ErrorMessage::parse(&data[pos..], header)?;
+                let (used, emsg) = ErrorMessage::unpack(&data[pos..], header)?;
                 pos = pos + used;
                 if emsg.code != 0 {
                     return Err(
@@ -255,7 +255,7 @@ impl Socket {
             else {
                 let flags = MessageFlags::from_bits(header.flags)
                     .unwrap_or(MessageFlags::empty());
-                let (used, msg) = DataMessage::parse(&data[pos..], header)?;
+                let (used, msg) = DataMessage::unpack(&data[pos..], header)?;
                 pos = pos + used;
                 messages.push(Message::Data(msg));
                 if flags.contains(MessageFlags::MULTIPART)

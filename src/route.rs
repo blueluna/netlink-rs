@@ -1,9 +1,9 @@
-use std::io::{Write, Error, ErrorKind};
+use std::io::{Error, ErrorKind};
 use libc;
 
 use errors::Result;
-use core::{Sendable, Attribute, MessageFlags, NativeUnpack, NativeWrite,
-    ConvertFrom};
+use core::{Sendable, Attribute, MessageFlags, NativeUnpack, NativePack,
+    pack_vec, ConvertFrom};
 
 /// Family Id?!?
 /// From Linux kernel header
@@ -76,16 +76,14 @@ impl Message {
 }
 
 impl Sendable for Message {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn pack(&self, data: &mut [u8]) -> Result<usize>
+    {
         let kind: u8 = libc::AF_PACKET as u8;
-        kind.write(writer)?;
-        for attr in self.attributes.iter() {
-            attr.write(writer)?;
-        }
-        Ok(())
+        let slice = kind.pack(data)?;
+        let size = pack_vec(slice, &self.attributes)?;
+        Ok(size + 1)
     }
     fn message_type(&self) -> u16 { self.family }
-
     fn query_flags(&self) -> MessageFlags {
         MessageFlags::REQUEST | MessageFlags::DUMP
     }
@@ -101,7 +99,7 @@ pub struct InterfaceInformationMessage {
 }
 
 impl InterfaceInformationMessage {
-    pub fn parse(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)>
+    pub fn unpack(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)>
     {
         if data.len() < 16 {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
@@ -112,7 +110,7 @@ impl InterfaceInformationMessage {
         let index = i32::unpack_unchecked(&data[4..]);
         let flags = u32::unpack_unchecked(&data[8..]);
         let change = u32::unpack_unchecked(&data[12..]);
-        let (used, attributes) = Attribute::parse_all(&data[16..]);
+        let (used, attributes) = Attribute::unpack_all(&data[16..]);
         Ok((used + 16, InterfaceInformationMessage {
             family: family,
             kind: kind,
@@ -127,6 +125,7 @@ impl InterfaceInformationMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core;
     use core::{Socket, Protocol};
 
     #[test]
@@ -134,6 +133,18 @@ mod tests {
         let mut socket = Socket::new(Protocol::Route).unwrap();
         let msg = Message::new(FamilyId::GetLink);
         socket.send_message(&msg).unwrap();
-        let _ = socket.receive_messages().unwrap();
+        for message in socket.receive_messages().unwrap() {
+            match message {
+                core::Message::Data(d) => {
+                    assert_eq!(d.header.identifier, FamilyId::NewLink);
+                },
+                core::Message::Acknowledge => {
+                    assert!(false);
+                },
+                core::Message::Done => {
+                    assert!(true);
+                }
+            }
+        }
     }
 }
