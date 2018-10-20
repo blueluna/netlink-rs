@@ -8,7 +8,7 @@ use errors::Result;
 
 use core::Protocol;
 use core::system;
-use core::pack::{NativePack};
+use core::pack::{NativePack, NativeUnpack};
 use core::message::{MessageFlags, Header, ErrorMessage, DataMessage,
     Message, netlink_align};
 
@@ -224,7 +224,7 @@ impl Socket {
         let data = &self.receive_buffer[..bytes];
         let mut pos = 0;
         while pos < bytes {
-            let (used, header) = Header::unpack(&data[pos..])?;
+            let (used, header) = Header::unpack_with_size(&data[pos..])?;
             pos = pos + used;
             if !header.check_pid(self.local.pid) {
                 return Err(io::Error::new(io::ErrorKind::InvalidData,

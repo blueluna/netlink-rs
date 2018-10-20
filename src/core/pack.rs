@@ -8,11 +8,17 @@ use core::hardware_address::HardwareAddress;
 use ::errors::Result;
 
 pub trait NativeUnpack: Sized {
-    fn unpack(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() < mem::size_of::<Self>() {
+    fn unpack(buffer: &[u8]) -> Result<Self>
+    {
+        Self::unpack_with_size(buffer).and_then(|r| Ok(r.1))
+    }
+    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
+    {
+        let size = mem::size_of::<Self>();
+        if buffer.len() < size {
             return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
         }
-        Ok(Self::unpack_unchecked(buffer))
+        Ok((mem::size_of::<Self>(), Self::unpack_unchecked(buffer)))
     }
     fn unpack_unchecked(buffer: &[u8]) -> Self;
 }
@@ -85,8 +91,10 @@ impl NativeUnpack for Vec<u8> {
     fn unpack(buffer: &[u8]) -> Result<Self> {
         Ok(Self::unpack_unchecked(buffer))
     }
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)> {
+        Ok((buffer.len(), Self::unpack_unchecked(buffer)))
+    }
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         buffer.to_vec()
     }
 }
@@ -216,13 +224,28 @@ mod tests {
     {
         let value_size = mem::size_of::<T>();
         assert_eq!(bytes.len(), value_size);
-        assert_eq!(T::unpack(bytes).unwrap(), value);
-        let mut buffer = vec![0u8; mem::size_of::<T>()];
+        let (unpacked_size, unpacked_value) = T::unpack_with_size(bytes)
+            .unwrap();
+        assert_eq!(unpacked_size, value_size);
+        assert_eq!(unpacked_value, value);
+        let unpacked_value = T::unpack(bytes).unwrap();
+        assert!(T::unpack(&bytes[..value_size - 1]).is_err());
+        assert_eq!(unpacked_value, value);
+        let unpacked_value = T::unpack_unchecked(bytes);
+        assert_eq!(unpacked_value, value);
+        let mut buffer = vec![0u8; value_size];
         {
-            let left = T::pack(&value, &mut buffer).unwrap();
+            let left = value.pack(&mut buffer).unwrap();
             assert_eq!(left.len(), 0);
         }
         assert_eq!(buffer, bytes);
+        let mut buffer = vec![0xccu8; value_size - 1];
+        assert!(value.pack(&mut buffer).is_err());
+        let mut buffer = vec![0u8; value_size + 2];
+        {
+            let left = value.pack(&mut buffer).unwrap();
+            assert_eq!(left.len(), 2);
+        }
     }
 
 
