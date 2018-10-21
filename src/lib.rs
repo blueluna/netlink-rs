@@ -6,11 +6,10 @@ extern crate byteorder;
 #[macro_use] extern crate error_chain;
 
 mod errors;
-#[macro_use] mod core;
+#[macro_use] pub mod core;
 pub mod route;
 pub mod generic;
 
 pub use errors::{Error, Result};
-pub use core::{HardwareAddress, Socket, Message, Attribute, Protocol,
-    MessageMode, NativeRead, NativeWrite, NativeUnpack, ConvertFrom,
-    DataMessage, ErrorMessage};
+pub use core::{Attribute, ConvertFrom, DataMessage, HardwareAddress, Message,
+    MessageMode, NativePack, NativeUnpack, Protocol, Socket };

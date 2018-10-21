@@ -33,10 +33,9 @@ extended_enum!(Protocol, i32,
 
 pub use self::socket::{Socket, Sendable};
 pub use self::message::{MessageFlags, MessageMode, Attribute,
-    Message, DataMessage, ErrorMessage};
+    Header, Message, DataMessage, ErrorMessage};
 pub use self::hardware_address::HardwareAddress;
 pub use self::pack::{NativeUnpack, NativePack, pack_vec};
-pub use self::variant::{NativeRead, NativeWrite};
 
 /// A trait for converting a value from one type to another.
 /// Any failure in converting will return None.

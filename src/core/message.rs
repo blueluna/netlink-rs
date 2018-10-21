@@ -2,10 +2,9 @@ use errors::Result;
 use std::fmt;
 use std::str;
 use std::mem::size_of;
-use std::io::{Write, Error, ErrorKind};
+use std::io::{Error, ErrorKind};
 use std::ffi::{CStr, CString};
 
-use core::variant::{NativeWrite};
 use core::pack::{NativeUnpack, NativePack};
 use core::hardware_address::HardwareAddress;
 
@@ -54,6 +53,18 @@ pub(crate) fn netlink_padding(len: usize) -> usize
 }
 
 /// Netlink message header
+/// 
+/// ```text
+/// | length | identifier | flags | sequence | pid | 
+/// |--------|------------|-------|----------|-----|
+/// |   u32  |     u16    |  u16  |   u32    | u32 |
+/// ```
+/// 
+/// Length is the total length of the message in bytes, including the header.
+/// Message data comes after the header. The data is 4 byte aligned, which
+/// means that the actual length message length might be longer than indicated
+/// by the length field.
+/// 
 #[repr(C)]
 pub struct Header {
     pub length: u32,
@@ -66,30 +77,38 @@ pub struct Header {
 impl Header {
     const HEADER_SIZE: usize = 16;
 
+    /// Returns the length including the header
     pub fn length(&self) -> usize {
         self.length as usize
     }
 
+    /// Returns the length of the data section
     pub fn data_length(&self) -> usize {
         self.length() - size_of::<Header>()
     }
 
+    /// Returns padding length in octets
     pub fn padding(&self) -> usize {
         netlink_padding(self.length())
     }
 
+    /// Returns length including header and padding
     pub fn aligned_length(&self) -> usize {
         netlink_align(self.length())
     }
 
+    /// Returns length of the data section header and padding
     pub fn aligned_data_length(&self) -> usize {
         netlink_align(self.data_length())
     }
 
+    /// Check if the message pid equals provided pid or broadcast (0)
     pub fn check_pid(&self, pid: u32) -> bool {
         self.pid == 0 || self.pid == pid
     }
 
+    /// Check if the message sequence number equals the  provided sequence
+    /// number or broadcast (0)
     pub fn check_sequence(&self, sequence: u32) -> bool {
         self.pid == 0 || self.sequence == sequence
     }
@@ -137,6 +156,16 @@ impl NativeUnpack for Header {
     }
 }
 
+/// Netlink data header
+/// 
+/// ```text
+/// | header |    data     | padding |
+/// |--------|-------------|---------|
+/// | Header | u8 * length |         |
+/// ```
+/// 
+/// Header is the message header, See [Header](struct.Header.html).
+/// The data is 4 byte aligned. 
 pub struct DataMessage {
     pub header: Header,
     pub data: Vec<u8>,
@@ -165,6 +194,16 @@ impl DataMessage {
 }
 
 /// Netlink error message
+/// 
+/// ```text
+/// | header |  error code  | Original Header |
+/// |--------|--------------|-----------------|
+/// | Header |      i32     |     Header      |
+/// ```
+/// 
+/// Header is the message header, See [Header](struct.Header.html).
+/// The error code is an errno number reported by the kernel.
+/// The original header is the header of the message that caused this error.
 pub struct ErrorMessage {
     pub header: Header,
     pub code: i32,
@@ -201,8 +240,13 @@ pub enum Message {
 
 /// Netlink attribute
 ///
-/// Consists of a 2 octet length, an 2 octet identifier and the data.
-/// The data is aligned to 4 octets.
+/// ```text
+/// | length | identifier |        data        | padding |
+/// |--------|------------|--------------------|---------|
+/// |   u16  |     u16    |  u8 * (length - 4) |         |
+/// ```
+/// 
+/// The data is 4 byte aligned.
 #[derive(Clone)]
 pub struct Attribute {
     pub identifier: u16,
@@ -212,6 +256,7 @@ pub struct Attribute {
 impl Attribute {
     const HEADER_SIZE: usize = 4;
 
+    /// Unpack all attributes in the byte slice
     pub fn unpack_all(data: &[u8]) -> (usize, Vec<Attribute>) {
         let mut pos = 0usize;
         let mut attrs = vec![];
@@ -224,6 +269,7 @@ impl Attribute {
         (pos, attrs)
     }
 
+    /// Create a new string attribute with provided identifier
     pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute
     {
         let c_string = CString::new(value).unwrap();
@@ -231,6 +277,7 @@ impl Attribute {
             data: c_string.into_bytes_with_nul() }
     }
 
+    /// Create a new attribute from a type that can be packed into a byte slice
     pub fn new<ID: Into<u16>, V: NativePack>(identifier: ID, value: V)
         -> Attribute
     {
@@ -239,37 +286,47 @@ impl Attribute {
         Attribute { identifier: identifier.into(), data: data }
     }
 
+    /// Get the length of the data
     pub fn len(&self) -> u16 {
         self.data.len() as u16
     }
+    /// Get the length of the data and header
     pub fn total_len(&self) -> usize {
         self.data.len() + Attribute::HEADER_SIZE
     }
-
+    /// Unpack the underlying data into a u8
     pub fn as_u8(&self) -> Result<u8> {
         u8::unpack(&self.data)
     }
+    /// Unpack the underlying data into a u16
     pub fn as_u16(&self) -> Result<u16> {
         u16::unpack(&self.data)
     }
+    /// Unpack the underlying data into a u32
     pub fn as_u32(&self) -> Result<u32> {
         u32::unpack(&self.data)
     }
+    /// Unpack the underlying data into a u64
     pub fn as_u64(&self) -> Result<u64> {
         u64::unpack(&self.data)
     }
+    /// Unpack the underlying data into a i8
     pub fn as_i8(&self) -> Result<i8> {
         i8::unpack(&self.data)
     }
+    /// Unpack the underlying data into a i16
     pub fn as_i16(&self) -> Result<i16> {
         i16::unpack(&self.data)
     }
+    /// Unpack the underlying data into a i32
     pub fn as_i32(&self) -> Result<i32> {
         i32::unpack(&self.data)
     }
+    /// Unpack the underlying data into a i64
     pub fn as_i64(&self) -> Result<i64> {
         i64::unpack(&self.data)
     }
+    /// Unpack the underlying data into a String
     pub fn as_string(&self) -> Result<String> {
         match CStr::from_bytes_with_nul(&self.data) {
             Ok(bytes) => {
@@ -282,18 +339,13 @@ impl Attribute {
             }
         }
     }
+    /// Unpack the underlying data into a HardwareAddress
     pub fn as_hardware_address(&self) -> Result<HardwareAddress> {
         HardwareAddress::unpack(&self.data)
     }
+    /// Get a clone of the underlying data
     pub fn as_bytes(&self) -> Vec<u8> {
         self.data.clone()
-    }
-    pub fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        let length = self.total_len() as u16;
-        length.write(writer)?;
-        self.identifier.write(writer)?;
-        writer.write_all(&self.data)?;
-        Ok(())
     }
 }
 
