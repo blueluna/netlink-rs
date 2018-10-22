@@ -2,6 +2,7 @@
 mod hardware_address;
 mod pack;
 mod system;
+mod attribute;
 mod message;
 mod socket;
 
@@ -31,8 +32,9 @@ extended_enum!(Protocol, i32,
 );
 
 pub use self::socket::{Socket, Sendable};
-pub use self::message::{MessageFlags, MessageMode, Attribute,
-    Header, Message, DataMessage};
+pub use self::attribute::{Attribute, nested_attribute_array};
+pub use self::message::{MessageFlags, MessageMode, Header, Message,
+    DataMessage};
 pub use self::hardware_address::HardwareAddress;
 pub use self::pack::{NativeUnpack, NativePack, pack_vec};
 

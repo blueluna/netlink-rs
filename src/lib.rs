@@ -9,4 +9,5 @@ pub mod generic;
 
 pub use errors::{Error, Result};
 pub use core::{Attribute, ConvertFrom, DataMessage, HardwareAddress, Message,
-    MessageMode, NativePack, NativeUnpack, Protocol, Socket };
+    MessageMode, NativePack, NativeUnpack, Protocol, Socket};
+pub use core::{nested_attribute_array};
