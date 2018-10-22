@@ -1,8 +1,7 @@
-use errors::Result;
+use errors::{Result, NetlinkError, NetlinkErrorKind};
 use std::fmt;
 use std::str;
 use std::mem::size_of;
-use std::io::{Error, ErrorKind};
 use std::ffi::{CStr, CString};
 
 use core::pack::{NativeUnpack, NativePack};
@@ -178,7 +177,7 @@ impl DataMessage {
         let size = header.data_length();
         let aligned_size = netlink_align(size);
         if data.len() < aligned_size {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         Ok((aligned_size,
             DataMessage { header: header, data: (&data[..size]).to_vec() }
@@ -204,7 +203,7 @@ impl DataMessage {
 /// Header is the message header, See [Header](struct.Header.html).
 /// The error code is an errno number reported by the kernel.
 /// The original header is the header of the message that caused this error.
-pub struct ErrorMessage {
+pub(crate) struct ErrorMessage {
     pub header: Header,
     pub code: i32,
     pub original_header: Header,
@@ -215,20 +214,13 @@ impl ErrorMessage {
     {
         let size = 4 + Header::HEADER_SIZE;
         if data.len() < size {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         let code = i32::unpack_unchecked(data);
         let (_, original) = Header::unpack_with_size(&data[4..])?;
         Ok((size,
             ErrorMessage { header: header, code: code,
                 original_header: original }))
-    }
-
-    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
-        let slice = self.header.pack(buffer)?;
-        let slice = self.code.pack(slice)?;
-        let slice = self.original_header.pack(slice)?;
-        Ok(slice)
     }
 }
 
@@ -334,8 +326,8 @@ impl Attribute {
                 Ok(String::from(s))
             },
             Err(_) => {
-                let s = str::from_utf8(&self.data)?;
-                Ok(String::from(s))
+                let s = String::from_utf8(self.data.clone())?;
+                Ok(s)
             }
         }
     }
@@ -370,14 +362,14 @@ impl NativeUnpack for Attribute {
     fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
     {
         if buffer.len() < Attribute::HEADER_SIZE {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         let length = u16::unpack_unchecked(buffer) as usize;
         let identifier = u16::unpack_unchecked(&buffer[2..]);
 
         let padding = netlink_padding(length);
         if buffer.len() < (length + padding) {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         let attr_data = (&buffer[4..length]).to_vec();
         Ok((length + padding,
@@ -536,47 +528,6 @@ mod tests {
         assert_eq!(msg.original_header.flags, 0x0011u16);
         assert_eq!(msg.original_header.sequence, u32::max_value());
         assert_eq!(msg.original_header.pid, 5u32);
-    }
-
-    #[test]
-    fn pack_error_message()
-    {
-        let message = ErrorMessage {
-            header: Header {
-                length: 36,
-                identifier: 0x1000,
-                flags: 0x0010,
-                sequence: 1,
-                pid: 4,
-            },
-            code: -1,
-            original_header: Header {
-                length: 18,
-                identifier: 0x1100,
-                flags: 0x0011,
-                sequence: 0xffffffff,
-                pid: 5,
-            },
-        };
-        let mut buffer = [0xffu8; 36];
-        {
-            let slice = message.pack(&mut buffer).unwrap();
-            assert_eq!(slice.len(), 0usize);
-        }
-        let data = [
-            0x24, 0x00, 0x00, 0x00, // size
-            0x00, 0x10, // identifier
-            0x10, 0x00, // flags
-            0x01, 0x00, 0x00, 0x00, // sequence
-            0x04, 0x00, 0x00, 0x00, // pid
-            0xff, 0xff, 0xff, 0xff, // error code
-            0x12, 0x00, 0x00, 0x00, // size
-            0x00, 0x11, // identifier
-            0x11, 0x00, // flags
-            0xff, 0xff, 0xff, 0xff, // sequence
-            0x05, 0x00, 0x00, 0x00u8, // pid
-            ];
-        assert_eq!(&buffer[..], &data[..]);
     }
 
     #[test]

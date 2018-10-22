@@ -4,7 +4,7 @@ use std::os::unix::io::{RawFd, AsRawFd};
 
 use libc;
 
-use errors::Result;
+use errors::{Result, NetlinkError, NetlinkErrorKind};
 
 use core::Protocol;
 use core::system;
@@ -227,12 +227,12 @@ impl Socket {
             let (used, header) = Header::unpack_with_size(&data[pos..])?;
             pos = pos + used;
             if !header.check_pid(self.local.pid) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData,
-                    "Invalid PID").into());
+                return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
+                    .into());
             }
             if !header.check_sequence(self.sequence_expected) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData,
-                    "Invalid Sequence").into());
+                return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
+                    .into());
             }
             if header.identifier == NLMSG_NOOP {
                 continue;

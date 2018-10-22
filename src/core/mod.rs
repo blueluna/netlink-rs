@@ -1,7 +1,6 @@
 #[macro_use] mod helpers;
 mod hardware_address;
 mod pack;
-mod variant;
 mod system;
 mod message;
 mod socket;
@@ -33,7 +32,7 @@ extended_enum!(Protocol, i32,
 
 pub use self::socket::{Socket, Sendable};
 pub use self::message::{MessageFlags, MessageMode, Attribute,
-    Header, Message, DataMessage, ErrorMessage};
+    Header, Message, DataMessage};
 pub use self::hardware_address::HardwareAddress;
 pub use self::pack::{NativeUnpack, NativePack, pack_vec};
 

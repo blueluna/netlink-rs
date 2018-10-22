@@ -1,12 +1,10 @@
-use std::io::{Error, ErrorKind};
 use libc;
 
-use errors::Result;
+use errors::{Result, NetlinkError, NetlinkErrorKind};
 use core::{Sendable, Attribute, MessageFlags, NativeUnpack, NativePack,
     pack_vec, ConvertFrom};
 
-/// Family Id?!?
-/// From Linux kernel header
+/// Netlinkt route command
 extended_enum!(FamilyId, u16,
     NewLink => 16,
     DeleteLink => 17,
@@ -102,7 +100,8 @@ impl InterfaceInformationMessage {
     pub fn unpack(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)>
     {
         if data.len() < 16 {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData)
+                .into());
         }
         let family = u8::unpack_unchecked(&data[0..]);
         // reserved u8

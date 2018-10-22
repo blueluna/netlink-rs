@@ -1,11 +1,21 @@
 use std::mem;
 use std::ptr;
-use std::io::{Error, ErrorKind};
 
 use byteorder::{ByteOrder, NativeEndian};
 
+use errors::{NetlinkError, NetlinkErrorKind};
 use core::hardware_address::HardwareAddress;
 use ::errors::Result;
+
+#[inline]
+pub(crate) fn slice_copy(src: &[u8], dst: &mut [u8], length: usize)
+{
+    assert!(src.len() >= length);
+    assert!(dst.len() >= length);
+    unsafe {
+        ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), length);
+    }
+}
 
 pub trait NativeUnpack: Sized {
     fn unpack(buffer: &[u8]) -> Result<Self>
@@ -16,7 +26,7 @@ pub trait NativeUnpack: Sized {
     {
         let size = mem::size_of::<Self>();
         if buffer.len() < size {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         Ok((mem::size_of::<Self>(), Self::unpack_unchecked(buffer)))
     }
@@ -103,7 +113,7 @@ pub trait NativePack: Sized {
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let type_size = mem::size_of::<Self>();
         if buffer.len() < type_size {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         Self::pack_unchecked(&self, buffer);
         Ok(&mut buffer[type_size..])
@@ -183,17 +193,14 @@ impl NativePack for Vec<u8> {
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let size = self.len();
         if buffer.len() < size {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         Self::pack_unchecked(&self, buffer);
         Ok(&mut buffer[size..])
     }
     fn pack_unchecked(&self, buffer: &mut [u8])
     {
-        unsafe {
-            ptr::copy_nonoverlapping(self.as_ptr(), buffer.as_mut_ptr(),
-                self.len());
-        }
+        slice_copy(&self, buffer, self.len());
     }
 }
 
@@ -203,7 +210,7 @@ pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>)
     let type_size = mem::size_of::<T>();
     let size = type_size * v.len();
     if buffer.len() < size {
-        return Err(Error::new(ErrorKind::UnexpectedEof, "").into());
+        return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
     }
     let mut pos = 0usize;
     for i in v {

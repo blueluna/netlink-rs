@@ -1,9 +1,8 @@
 use std::fmt;
-use std::io;
 
 use std::convert::{From, Into};
 
-use errors::Result;
+use errors::{Result, NetlinkError, NetlinkErrorKind};
 
 use core;
 use core::{Attribute, Sendable, MessageFlags, MessageMode, NativePack,
@@ -158,7 +157,7 @@ impl MulticastGroup {
                 name: group_name,
             });
         }
-        Err(io::Error::new(io::ErrorKind::InvalidData, "").into())
+        Err(NetlinkError::new(NetlinkErrorKind::InvalidValue).into())
     }
 }
 
@@ -210,7 +209,7 @@ impl Family {
                 name: family_name,
                 multicast_groups: groups });
         }
-        Err(io::Error::new(io::ErrorKind::NotFound, "Family Not Found").into())
+        Err(NetlinkError::new(NetlinkErrorKind::NotFound).into())
     }
 
     pub fn from_name(socket: &mut core::Socket, name: &str)
@@ -244,8 +243,7 @@ impl Family {
                 }
             }
         }
-        Err(io::Error::new(io::ErrorKind::NotFound,
-            "Generic family not found").into())
+        Err(NetlinkError::new(NetlinkErrorKind::NotFound).into())
     }
 
     pub fn from_id<ID: Into<u16>>(socket: &mut core::Socket, id: ID)
@@ -278,7 +276,7 @@ impl Family {
                 }
             }
         }
-        Err(io::Error::new(io::ErrorKind::NotFound, "Generic family not found").into())
+        Err(NetlinkError::new(NetlinkErrorKind::NotFound).into())
     }
 
     pub fn all(socket: &mut core::Socket) -> Result<Vec<Family>>
