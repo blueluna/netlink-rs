@@ -18,7 +18,7 @@ use core::message::{netlink_padding};
 /// ---------------------------------------------------------------
 ///    u16    u16    u8 * (size - 4)
 /// ```
-pub fn nested_attribute_array(data: &[u8]) -> Vec<Attribute>
+pub fn nested_attribute_array(data: &[u8]) -> Vec<Vec<Attribute>>
 {
     let vs = mem::size_of::<u16>();
     let mut attrs = vec![];
@@ -27,9 +27,9 @@ pub fn nested_attribute_array(data: &[u8]) -> Vec<Attribute>
         let size = u16::unpack(&d).unwrap();
         let _index = u16::unpack(&d[vs..]).unwrap();
         if d.len() > size as usize {
-            let (_, mut ats) = Attribute::unpack_all(
+            let (_, attributes) = Attribute::unpack_all(
                 &d[(vs * 2)..size as usize]);
-            attrs.append(&mut ats);
+            attrs.push(attributes);
         }
         else {
             break;

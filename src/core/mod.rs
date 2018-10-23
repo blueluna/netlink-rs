@@ -31,7 +31,7 @@ extended_enum!(Protocol, i32,
     SMC => 21
 );
 
-pub use self::socket::{Socket, Sendable};
+pub use self::socket::{Socket, SendMessage};
 pub use self::attribute::{Attribute, nested_attribute_array};
 pub use self::message::{MessageFlags, MessageMode, Header, Message,
     DataMessage};

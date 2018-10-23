@@ -5,7 +5,7 @@ use std::convert::{From, Into};
 use errors::{Result, NetlinkError, NetlinkErrorKind};
 
 use core;
-use core::{Attribute, Sendable, MessageFlags, MessageMode, NativePack,
+use core::{Attribute, SendMessage, MessageFlags, MessageMode, NativePack,
     ConvertFrom};
 
 extended_enum!(FamilyId, u16,
@@ -102,7 +102,7 @@ impl Message {
     }
 }
 
-impl Sendable for Message {
+impl SendMessage for Message {
     fn pack(&self, data: &mut [u8]) -> Result<usize>
     {
         let slice = self.command.pack(data)?;
@@ -111,7 +111,7 @@ impl Sendable for Message {
         let size = core::pack_vec(slice, &self.attributes)?;
         Ok(size + 4)
     }
-    fn message_type(&self) -> u16 { self.family.clone().into() }
+    fn message_type(&self) -> u16 { self.family }
     fn query_flags(&self) -> MessageFlags { self.flags }
 }
 

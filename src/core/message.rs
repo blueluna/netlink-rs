@@ -152,7 +152,7 @@ impl NativeUnpack for Header {
     }
 }
 
-/// Netlink data header
+/// Netlink data message
 /// 
 /// ```text
 /// | header |    data     | padding |
@@ -167,7 +167,6 @@ pub struct DataMessage {
     pub data: Vec<u8>,
 }
 
-/// Netlink data message
 impl DataMessage {
     pub fn unpack(data: &[u8], header: Header) -> Result<(usize, DataMessage)>
     {

@@ -12,7 +12,7 @@ use core::pack::{NativePack, NativeUnpack};
 use core::message::{MessageFlags, Header, ErrorMessage, DataMessage,
     Message, netlink_align};
 
-pub trait Sendable {
+pub trait SendMessage {
     fn pack(&self, data: &mut [u8]) -> Result<usize>;
     fn message_type(&self) -> u16;
     fn query_flags(&self) -> MessageFlags;
@@ -131,7 +131,7 @@ impl Socket {
     }
 
     /// Send the provided package on the socket
-    pub fn send_message<S: Sendable>(&mut self, payload: &S) -> Result<usize>
+    pub fn send_message<S: SendMessage>(&mut self, payload: &S) -> Result<usize>
     {
         let hdr_size = size_of::<Header>();
         let flags = payload.query_flags();

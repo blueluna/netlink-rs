@@ -1,7 +1,7 @@
 use libc;
 
 use errors::{Result, NetlinkError, NetlinkErrorKind};
-use core::{Sendable, Attribute, MessageFlags, NativeUnpack, NativePack,
+use core::{SendMessage, Attribute, MessageFlags, NativeUnpack, NativePack,
     pack_vec, ConvertFrom};
 
 /// Netlinkt route command
@@ -73,7 +73,7 @@ impl Message {
     }
 }
 
-impl Sendable for Message {
+impl SendMessage for Message {
     fn pack(&self, data: &mut [u8]) -> Result<usize>
     {
         let kind: u8 = libc::AF_PACKET as u8;
