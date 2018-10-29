@@ -64,13 +64,13 @@ impl Message {
     /// Create a new message
     pub fn new<F: Into<u16>, C: Into<u8>, M: Into<MessageFlags>>
         (family: F, command: C, mode: M) -> Message {
-        return Message {
+        Message {
             family: family.into(),
             command: command.into(),
             version: 1u8,
             flags: mode.into(),
             attributes: vec!(),
-            };
+        }
     }
 
     /// unpack message from slice
@@ -82,15 +82,15 @@ impl Message {
         Ok((consumed + 4usize,
             Message {
                 family: 0xffff,
-                command: command,
-                version: version,
+                command,
+                version,
                 flags: MessageFlags::from_bits_truncate(0),
-                attributes: attributes,
+                attributes,
             }))
     }
 
     /// Get the message family as u16
-    pub fn family(&self) -> u16 { self.family.clone().into() }
+    pub fn family(&self) -> u16 { self.family }
 
     /// Set message flags
     pub fn set_flags(&mut self, flags: MessageFlags) { self.flags = flags; }
@@ -138,7 +138,7 @@ impl MulticastGroup {
     fn from_bytes(bytes: &[u8]) -> Result<MulticastGroup>
     {
         let (_, attributes) = core::Attribute::unpack_all(bytes);
-        let mut group_name = String::new();
+        let mut name = String::new();
         let mut group_id = None;
         for attribute in attributes {
             match MulticastAttributeId::from(attribute.identifier) {
@@ -147,15 +147,12 @@ impl MulticastGroup {
                     group_id = attribute.as_u32().ok();
                 }
                 MulticastAttributeId::Name => {
-                    group_name = attribute.as_string()?;
+                    name = attribute.as_string()?;
                 }
             }
         }
         if let Some(id) = group_id {
-            return Ok(MulticastGroup {
-                id: id,
-                name: group_name,
-            });
+            return Ok(MulticastGroup { id, name });
         }
         Err(NetlinkError::new(NetlinkErrorKind::InvalidValue).into())
     }
@@ -228,18 +225,15 @@ impl Family {
                 break;
             }
             for message in messages {
-                match message {
-                    core::Message::Data(m) => {
-                        if FamilyId::convert_from(m.header.identifier) ==
-                            Some(FamilyId::Control) {
-                            let (_, msg) = Message::unpack(&m.data)?;
-                            let family = Family::from_message(msg)?;
-                            if family.name == name {
-                                return Ok(family);
-                            }
+                if let core::Message::Data(m) = message {
+                    if FamilyId::convert_from(m.header.identifier) ==
+                        Some(FamilyId::Control) {
+                        let (_, msg) = Message::unpack(&m.data)?;
+                        let family = Family::from_message(msg)?;
+                        if family.name == name {
+                            return Ok(family);
                         }
-                    },
-                    _ => (),
+                    }
                 }
             }
         }
@@ -249,11 +243,11 @@ impl Family {
     pub fn from_id<ID: Into<u16>>(socket: &mut core::Socket, id: ID)
         -> Result<Family>
     {
-        let id = id.into().clone();
+        let id = id.into();
         {
             let mut tx_msg = Message::new(FamilyId::Control,
                 Command::GetFamily, MessageMode::Acknowledge);
-            tx_msg.attributes.push(Attribute::new(AttributeId::FamilyId, id));
+            tx_msg.attributes.push(Attribute::new(AttributeId::FamilyId, &id));
             socket.send_message(&tx_msg)?;
         }
         loop {
@@ -262,17 +256,14 @@ impl Family {
                 break;
             }
             for message in messages {
-                match message {
-                    core::Message::Data(m) => {
-                        if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                            let (_, msg) = Message::unpack(&m.data)?;
-                            let family = Family::from_message(msg)?;
-                            if family.id == id {
-                                return Ok(family);
-                            }
+                if let core::Message::Data(m) = message {
+                    if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
+                        let (_, msg) = Message::unpack(&m.data)?;
+                        let family = Family::from_message(msg)?;
+                        if family.id == id {
+                            return Ok(family);
                         }
-                    },
-                    _ => (),
+                    }
                 }
             }
         }
@@ -300,7 +291,7 @@ impl Family {
                 core::Message::Done => { break; }
             }
         }
-        return Ok(families)
+        Ok(families)
     }
 }
 

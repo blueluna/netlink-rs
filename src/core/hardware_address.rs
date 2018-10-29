@@ -11,7 +11,7 @@ pub struct HardwareAddress {
 
 impl HardwareAddress {
     pub fn bytes(&self) -> [u8; 6] {
-        self.value.clone()
+        self.value
     }
     pub fn as_ptr(&self) -> *const u8 {
         self.value.as_ptr()

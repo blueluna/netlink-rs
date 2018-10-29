@@ -69,7 +69,7 @@ pub struct Message {
 
 impl Message {
     pub fn new<F: Into<u16>>(family: F) -> Message {
-        return Message { family: family.into(), attributes: vec!(), };
+        Message { family: family.into(), attributes: vec!(), }
     }
 }
 
@@ -111,13 +111,7 @@ impl InterfaceInformationMessage {
         let change = u32::unpack_unchecked(&data[12..]);
         let (used, attributes) = Attribute::unpack_all(&data[16..]);
         Ok((used + 16, InterfaceInformationMessage {
-            family: family,
-            kind: kind,
-            index: index,
-            flags: flags,
-            change: change,
-            attributes: attributes,
-            }))
+            family, kind, index, flags, change, attributes }))
     }
 }
 

@@ -1,4 +1,5 @@
 use std::mem::size_of;
+use std::ptr;
 use std::io;
 use std::os::unix::io::{RawFd, AsRawFd};
 
@@ -64,28 +65,28 @@ impl Socket {
             libc::SOL_SOCKET, libc::SO_SNDBUF, 32768)?;
         system::set_socket_option(socket,
             libc::SOL_SOCKET, libc::SO_RCVBUF, 32768)?;
-        let mut local_addr = system::Address {
+        let mut local = system::Address {
             family: libc::AF_NETLINK as u16,
             _pad: 0,
             pid: 0,
-            groups: groups,
+            groups,
         };
-        system::bind(socket, &mut local_addr)?;
-        system::get_socket_address(socket, &mut local_addr)?;
+        system::bind(socket, &local)?;
+        system::get_socket_address(socket, &mut local)?;
         let page_size = netlink_align(system::get_page_size());
-        let peer_addr = system::Address {
+        let peer = system::Address {
             family: libc::AF_NETLINK as u16,
             _pad: 0,
             pid: 0,
-            groups: groups,
+            groups,
         };
         Ok(Socket {
-            local: local_addr,
-            peer: peer_addr,
-            socket: socket,
+            local,
+            peer,
+            socket,
             sequence_next: 1,
             sequence_expected: 0,
-            page_size: page_size,
+            page_size,
             receive_buffer: vec![0u8; page_size],
             send_buffer: vec![0u8; page_size],
             acknowledge_expected: false,
@@ -111,7 +112,7 @@ impl Socket {
             msg_name: addr_ptr as *mut libc::c_void,
             msg_flags: 0,
             msg_controllen: 0,
-            msg_control: 0 as *mut libc::c_void,
+            msg_control: ptr::null_mut(),
         }
     }
 
@@ -126,7 +127,7 @@ impl Socket {
             msg_name: addr_ptr as *mut libc::c_void,
             msg_flags: 0,
             msg_controllen: 0,
-            msg_control: 0 as *mut libc::c_void,
+            msg_control: ptr::null_mut(),
         }
     }
 
@@ -225,7 +226,7 @@ impl Socket {
         let mut pos = 0;
         while pos < bytes {
             let (used, header) = Header::unpack_with_size(&data[pos..])?;
-            pos = pos + used;
+            pos += used;
             if !header.check_pid(self.local.pid) {
                 return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
                     .into());
@@ -239,7 +240,7 @@ impl Socket {
             }
             else if header.identifier == NLMSG_ERROR {
                 let (used, emsg) = ErrorMessage::unpack(&data[pos..], header)?;
-                pos = pos + used;
+                pos += used;
                 if emsg.code != 0 {
                     return Err(
                         io::Error::from_raw_os_error(-emsg.code).into());
@@ -250,13 +251,13 @@ impl Socket {
             }
             else if header.identifier == NLMSG_DONE {
                 messages.push(Message::Done);
-                pos = pos + header.aligned_data_length();
+                pos += header.aligned_data_length();
             }
             else {
                 let flags = MessageFlags::from_bits(header.flags)
-                    .unwrap_or(MessageFlags::empty());
+                    .unwrap_or_else(MessageFlags::empty);
                 let (used, msg) = DataMessage::unpack(&data[pos..], header)?;
-                pos = pos + used;
+                pos += used;
                 messages.push(Message::Data(msg));
                 if flags.contains(MessageFlags::MULTIPART)
                     || self.acknowledge_expected {
@@ -264,7 +265,7 @@ impl Socket {
                 }
             }
         }
-        return Ok(more_messages);
+        Ok(more_messages)
     }
 }
 

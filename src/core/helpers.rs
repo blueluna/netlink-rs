@@ -47,13 +47,6 @@ macro_rules! extended_enum_default {
                     $( $name::$var => *self == $val, )*
                 }
             }
-
-            fn ne(&self, other: &$name) -> bool {
-                match *other {
-                    $name::$var_def => *self != $val_def,
-                    $( $name::$var => *self != $val, )*
-                }
-            }
         }
     );
 }
@@ -99,12 +92,6 @@ macro_rules! extended_enum {
             fn eq(&self, other: &$name) -> bool {
                 match *other {
                     $( $name::$var => *self == $val, )*
-                }
-            }
-
-            fn ne(&self, other: &$name) -> bool {
-                match *other {
-                    $( $name::$var => *self != $val, )*
                 }
             }
         }

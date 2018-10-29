@@ -143,12 +143,7 @@ impl NativeUnpack for Header {
         let flags = u16::unpack_unchecked(&buffer[6..]);
         let sequence = u32::unpack_unchecked(&buffer[8..]);
         let pid = u32::unpack_unchecked(&buffer[12..]);
-        Header {
-            length: length,
-            identifier: identifier,
-            flags: flags,
-            sequence: sequence,
-            pid: pid, }
+        Header { length, identifier, flags, sequence, pid }
     }
 }
 
@@ -176,7 +171,7 @@ impl DataMessage {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         Ok((aligned_size,
-            DataMessage { header: header, data: (&data[..size]).to_vec() }
+            DataMessage { header, data: (&data[..size]).to_vec() }
         ))
     }
 
@@ -210,13 +205,12 @@ impl ErrorMessage {
     {
         let size = 4 + Header::HEADER_SIZE;
         if data.len() < size {
-            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData)
+                .into());
         }
         let code = i32::unpack_unchecked(data);
         let (_, original) = Header::unpack_with_size(&data[4..])?;
-        Ok((size,
-            ErrorMessage { header: header, code: code,
-                original_header: original }))
+        Ok((size, ErrorMessage { header, code, original_header: original }))
     }
 }
 

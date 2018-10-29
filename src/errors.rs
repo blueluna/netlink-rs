@@ -20,7 +20,7 @@ pub struct NetlinkError {
 
 impl NetlinkError {
     pub fn new(kind: NetlinkErrorKind) -> NetlinkError {
-        NetlinkError { kind: kind }
+        NetlinkError { kind }
     }
 }
 

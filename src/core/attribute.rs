@@ -62,11 +62,8 @@ impl Attribute {
     pub fn unpack_all(data: &[u8]) -> (usize, Vec<Attribute>) {
         let mut pos = 0usize;
         let mut attrs = vec![];
-        loop {
-            match Attribute::unpack_with_size(&data[pos..]) {
-                Ok(r) => { attrs.push(r.1); pos += r.0; },
-                Err(_) => { break; },
-            }
+        while let Ok(result) = Attribute::unpack_with_size(&data[pos..]) {
+            attrs.push(result.1); pos += result.0;
         }
         (pos, attrs)
     }
@@ -80,17 +77,21 @@ impl Attribute {
     }
 
     /// Create a new attribute from a type that can be packed into a byte slice
-    pub fn new<ID: Into<u16>, V: NativePack>(identifier: ID, value: V)
+    pub fn new<ID: Into<u16>, V: NativePack>(identifier: ID, value: &V)
         -> Attribute
     {
         let mut data = vec![0u8; mem::size_of::<V>()];
         value.pack_unchecked(&mut data);
-        Attribute { identifier: identifier.into(), data: data }
+        Attribute { identifier: identifier.into(), data }
     }
 
     /// Get the length of the data
     pub fn len(&self) -> u16 {
         self.data.len() as u16
+    }
+    /// Data is empty
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
     /// Get the length of the data and header
     pub fn total_len(&self) -> usize {
@@ -181,16 +182,16 @@ impl NativeUnpack for Attribute {
         if buffer.len() < (length + padding) {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
-        let attr_data = (&buffer[4..length]).to_vec();
+        let data = (&buffer[4..length]).to_vec();
         Ok((length + padding,
-                Attribute { identifier: identifier, data: attr_data }))
+                Attribute { identifier, data }))
     }
     fn unpack_unchecked(buffer: &[u8]) -> Self
     {
         let length = u16::unpack_unchecked(buffer) as usize;
         let identifier = u16::unpack_unchecked(&buffer[2..]);
-        let attr_data = (&buffer[4..length]).to_vec();
-        Attribute { identifier: identifier, data: attr_data }
+        let data = (&buffer[4..length]).to_vec();
+        Attribute { identifier, data }
     }
 }
 

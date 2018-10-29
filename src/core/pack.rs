@@ -204,7 +204,7 @@ impl NativePack for Vec<u8> {
     }
 }
 
-pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>)
+pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &[T])
     -> Result<usize>
 {
     let type_size = mem::size_of::<T>();
