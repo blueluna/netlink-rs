@@ -1,6 +1,7 @@
 use std::mem::size_of;
 use std::io;
 use std::os::unix::io::{RawFd, AsRawFd};
+use std::collections::HashMap;
 
 use libc;
 
@@ -9,8 +10,8 @@ use errors::{Result, NetlinkError, NetlinkErrorKind};
 use core::Protocol;
 use core::system;
 use core::pack::{NativePack, NativeUnpack};
-use core::message::{MessageFlags, Header, ErrorMessage, DataMessage,
-    Message, netlink_align};
+use core::message::{ErrorMessage, Header, Message, MessageFlags, MessageMode,
+    Messages, netlink_align};
 
 pub trait SendMessage {
     fn pack(&self, data: &mut [u8]) -> Result<usize>;
@@ -42,11 +43,10 @@ pub struct Socket {
     peer: system::Address,
     socket: RawFd,
     sequence_next: u32,
-    sequence_expected: u32,
     page_size: usize,
     receive_buffer: Vec<u8>,
     send_buffer: Vec<u8>,
-    acknowledge_expected: bool,
+    sent: HashMap<u32, MessageMode>,
 }
 
 impl Socket {
@@ -84,11 +84,10 @@ impl Socket {
             peer: peer_addr,
             socket: socket,
             sequence_next: 1,
-            sequence_expected: 0,
             page_size: page_size,
             receive_buffer: vec![0u8; page_size],
             send_buffer: vec![0u8; page_size],
-            acknowledge_expected: false,
+            sent: HashMap::new(),
         })
     }
 
@@ -96,7 +95,7 @@ impl Socket {
     pub fn multicast_group_subscribe(&mut self, group: u32) -> Result<()>
     {
         system::set_socket_option(self.socket, libc::SOL_NETLINK,
-            NETLINK_ADD_MEMBERSHIP as i32, group as i32)?;
+            NETLINK_ADD_MEMBERSHIP, group)?;
         Ok(())
     }
 
@@ -157,8 +156,7 @@ impl Socket {
 
         let msg_header = self.message_header(&mut iov);
 
-        self.acknowledge_expected = flags.contains(MessageFlags::ACKNOWLEDGE);
-        self.sequence_expected = self.sequence_next;
+        self.sent.insert(self.sequence_next, MessageMode::from(flags));
         self.sequence_next += 1;
 
         Ok(system::send_message(self.socket, &msg_header, 0)?)
@@ -196,7 +194,7 @@ impl Socket {
     }
 
     /// Receive Messages pending on the socket
-    pub fn receive_messages(&mut self) -> Result<Vec<Message>>
+    pub fn receive_messages(&mut self) -> Result<Messages>
     {
         let mut more_messages = true;
         let mut result_messages = Vec::new();
@@ -217,7 +215,21 @@ impl Socket {
         Ok(result_messages)
     }
 
-    fn unpack_data(&self, bytes: usize, messages: &mut Vec<Message>)
+    fn check_sequence(&self, sequence: &u32) -> bool {
+        if *sequence == 0 { return true; }
+        self.sent.contains_key(sequence)
+    }
+
+    fn expect_more(&self, sequence: &u32) -> bool {
+        if *sequence == 0 { return false; }
+        assert!(self.sent.contains_key(sequence));
+        if let Some(f) = self.sent.get(sequence) {
+            return *f != MessageMode::None;
+        }
+        false
+    }
+
+    fn unpack_data(&mut self, bytes: usize, messages: &mut Messages)
         -> Result<bool>
     {
         let mut more_messages = false;
@@ -230,14 +242,16 @@ impl Socket {
                 return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
                     .into());
             }
-            if !header.check_sequence(self.sequence_expected) {
+            if !self.check_sequence(&header.sequence) {
                 return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
                     .into());
             }
+            let sequence = header.sequence;
             if header.identifier == NLMSG_NOOP {
                 continue;
             }
             else if header.identifier == NLMSG_ERROR {
+                self.sent.remove(&sequence);
                 let (used, emsg) = ErrorMessage::unpack(&data[pos..], header)?;
                 pos = pos + used;
                 if emsg.code != 0 {
@@ -245,23 +259,22 @@ impl Socket {
                         io::Error::from_raw_os_error(-emsg.code).into());
                 }
                 else {
-                    messages.push(Message::Acknowledge);
+                    more_messages = false;
                 }
             }
             else if header.identifier == NLMSG_DONE {
-                messages.push(Message::Done);
+                self.sent.remove(&sequence);
+                more_messages = false;
                 pos = pos + header.aligned_data_length();
             }
             else {
                 let flags = MessageFlags::from_bits(header.flags)
                     .unwrap_or(MessageFlags::empty());
-                let (used, msg) = DataMessage::unpack(&data[pos..], header)?;
+                more_messages = flags.contains(MessageFlags::MULTIPART)
+                    || self.expect_more(&sequence);
+                let (used, msg) = Message::unpack(&data[pos..], header)?;
                 pos = pos + used;
-                messages.push(Message::Data(msg));
-                if flags.contains(MessageFlags::MULTIPART)
-                    || self.acknowledge_expected {
-                    more_messages = true;
-                }
+                messages.push(msg);
             }
         }
         return Ok(more_messages);

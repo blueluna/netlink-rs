@@ -33,8 +33,7 @@ extended_enum!(Protocol, i32,
 
 pub use self::socket::{Socket, SendMessage};
 pub use self::attribute::{Attribute, nested_attribute_array};
-pub use self::message::{MessageFlags, MessageMode, Header, Message,
-    DataMessage};
+pub use self::message::{MessageFlags, MessageMode, Header, Message};
 pub use self::hardware_address::HardwareAddress;
 pub use self::pack::{NativeUnpack, NativePack, pack_vec};
 

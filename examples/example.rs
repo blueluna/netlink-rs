@@ -2,12 +2,12 @@ extern crate netlink_rust;
 
 use netlink_rust as netlink;
 
-use netlink::{Socket, Protocol, Message, DataMessage};
+use netlink::{Socket, Protocol, Message};
 use netlink::route;
 use netlink::route::{InterfaceInformationMessage, AddressFamilyAttribute};
 use netlink::generic;
 
-fn handle_message(message: &DataMessage)
+fn handle_message(message: &Message)
 {
     if message.header.identifier == route::FamilyId::NewLink {
         let (_, msg) = InterfaceInformationMessage::unpack(&message.data)
@@ -32,17 +32,7 @@ fn get_network_interfaces(socket: &mut Socket)
     }
     let messages = socket.receive_messages().unwrap();
     for message in messages {
-        match message {
-            Message::Data(m) => {
-                handle_message(&m);
-            },
-            Message::Acknowledge => {
-                println!("Acknowledge");
-            },
-            Message::Done => {
-                println!("Done");
-            }
-        }
+        handle_message(&message);
     }
 }
 

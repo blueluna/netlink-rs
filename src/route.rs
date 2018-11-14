@@ -124,7 +124,6 @@ impl InterfaceInformationMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core;
     use core::{Socket, Protocol};
 
     #[test]
@@ -132,18 +131,8 @@ mod tests {
         let mut socket = Socket::new(Protocol::Route).unwrap();
         let msg = Message::new(FamilyId::GetLink);
         socket.send_message(&msg).unwrap();
-        for message in socket.receive_messages().unwrap() {
-            match message {
-                core::Message::Data(d) => {
-                    assert_eq!(d.header.identifier, FamilyId::NewLink);
-                },
-                core::Message::Acknowledge => {
-                    assert!(false);
-                },
-                core::Message::Done => {
-                    assert!(true);
-                }
-            }
+        for m in socket.receive_messages().unwrap() {
+            assert_eq!(m.header.identifier, FamilyId::NewLink);
         }
     }
 }

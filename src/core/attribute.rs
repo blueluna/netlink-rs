@@ -72,11 +72,25 @@ impl Attribute {
     }
 
     /// Create a new string attribute with provided identifier
-    pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute
+    pub fn new_bytes<ID: Into<u16>>(identifier: ID, value: &[u8]) -> Attribute
     {
+        Attribute { identifier: identifier.into(), data: value.to_vec() }
+    }
+
+    /// Create a new string attribute with provided identifier
+    pub fn new_string_with_nul<ID: Into<u16>>(identifier: ID, value: &str)
+        -> Attribute {
         let c_string = CString::new(value).unwrap();
         Attribute { identifier: identifier.into(),
             data: c_string.into_bytes_with_nul() }
+    }
+
+    /// Create a new string attribute with provided identifier
+    pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute
+    {
+        let string = CString::new(value).unwrap();
+        Attribute { identifier: identifier.into(),
+            data: string.into_bytes() }
     }
 
     /// Create a new attribute from a type that can be packed into a byte slice

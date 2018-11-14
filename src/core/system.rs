@@ -33,12 +33,12 @@ pub fn netlink_socket(service: i32) -> io::Result<RawFd>
         service)))
 }
 
-pub fn set_socket_option(socket: RawFd, level: i32, name: i32, value: i32)
-    -> io::Result<()>
+pub fn set_socket_option<T: Sized>(socket: RawFd, level: i32, name: i32,
+    value: T) -> io::Result<()>
 {
-    let value_ptr: *const i32 = &value;
+    let value_ptr: *const T = &value;
     ccall!(libc::setsockopt(socket, level, name, value_ptr
-        as *mut libc::c_void, size_of::<i32>() as u32));
+        as *mut libc::c_void, size_of::<T>() as u32));
     Ok(())
 }
 

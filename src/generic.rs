@@ -219,7 +219,7 @@ impl Family {
             let mut tx_msg = Message::new(FamilyId::Control,
                 Command::GetFamily, MessageMode::Acknowledge);
             tx_msg.attributes.push(
-                Attribute::new_string(AttributeId::FamilyName, name));
+                Attribute::new_string_with_nul(AttributeId::FamilyName, name));
             socket.send_message(&tx_msg)?;
         }
         loop {
@@ -227,19 +227,14 @@ impl Family {
             if messages.is_empty() {
                 break;
             }
-            for message in messages {
-                match message {
-                    core::Message::Data(m) => {
-                        if FamilyId::convert_from(m.header.identifier) ==
-                            Some(FamilyId::Control) {
-                            let (_, msg) = Message::unpack(&m.data)?;
-                            let family = Family::from_message(msg)?;
-                            if family.name == name {
-                                return Ok(family);
-                            }
-                        }
-                    },
-                    _ => (),
+            for m in messages {
+                if FamilyId::convert_from(m.header.identifier) ==
+                    Some(FamilyId::Control) {
+                    let (_, msg) = Message::unpack(&m.data)?;
+                    let family = Family::from_message(msg)?;
+                    if family.name == name {
+                        return Ok(family);
+                    }
                 }
             }
         }
@@ -261,18 +256,13 @@ impl Family {
             if messages.is_empty() {
                 break;
             }
-            for message in messages {
-                match message {
-                    core::Message::Data(m) => {
-                        if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
-                            let (_, msg) = Message::unpack(&m.data)?;
-                            let family = Family::from_message(msg)?;
-                            if family.id == id {
-                                return Ok(family);
-                            }
-                        }
-                    },
-                    _ => (),
+            for m in messages {
+                if FamilyId::convert_from(m.header.identifier) == Some(FamilyId::Control) {
+                    let (_, msg) = Message::unpack(&m.data)?;
+                    let family = Family::from_message(msg)?;
+                    if family.id == id {
+                        return Ok(family);
+                    }
                 }
             }
         }
@@ -288,16 +278,10 @@ impl Family {
         }
         let messages = socket.receive_messages()?;
         let mut families = vec![];
-        for message in messages {
-            match message {
-                core::Message::Data(m) => {
-                    if FamilyId::from(m.header.identifier) == FamilyId::Control {
-                        let (_, msg) = Message::unpack(&m.data)?;
-                        families.push(Family::from_message(msg)?);
-                    }
-                },
-                core::Message::Acknowledge => (),
-                core::Message::Done => { break; }
+        for m in messages {
+            if FamilyId::from(m.header.identifier) == FamilyId::Control {
+                let (_, msg) = Message::unpack(&m.data)?;
+                families.push(Family::from_message(msg)?);
             }
         }
         return Ok(families)

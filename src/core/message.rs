@@ -13,16 +13,31 @@ bitflags! {
     }
 }
 
+#[derive(PartialEq)]
 pub enum MessageMode {
     None,
     Acknowledge,
     Dump,
 }
 
-impl Into<MessageFlags> for MessageMode {
-    fn into(self) -> MessageFlags {
+impl From<MessageFlags> for MessageMode {
+    fn from(value: MessageFlags) -> MessageMode {
+        if value.intersects(MessageFlags::DUMP) {
+            MessageMode::Dump
+        }
+        else if value.intersects(MessageFlags::ACKNOWLEDGE) {
+            MessageMode::Acknowledge
+        }
+        else {
+            MessageMode::None
+        }
+    }
+}
+
+impl From<MessageMode> for MessageFlags {
+    fn from(value: MessageMode) -> MessageFlags {
         let flags = MessageFlags::REQUEST;
-        match self {
+        match value {
             MessageMode::None => flags,
             MessageMode::Acknowledge => flags | MessageFlags::ACKNOWLEDGE,
             MessageMode::Dump => flags | MessageFlags::DUMP,
@@ -105,8 +120,8 @@ impl Header {
 
     /// Check if the message sequence number equals the  provided sequence
     /// number or broadcast (0)
-    pub fn check_sequence(&self, sequence: u32) -> bool {
-        self.pid == 0 || self.sequence == sequence
+    pub fn flags(&self) -> MessageFlags {
+        MessageFlags::from_bits_truncate(self.flags)
     }
 }
 
@@ -152,42 +167,6 @@ impl NativeUnpack for Header {
     }
 }
 
-/// Netlink data message
-/// 
-/// ```text
-/// | header |    data     | padding |
-/// |--------|-------------|---------|
-/// | Header | u8 * length |         |
-/// ```
-/// 
-/// Header is the message header, See [Header](struct.Header.html).
-/// The data is 4 byte aligned. 
-pub struct DataMessage {
-    pub header: Header,
-    pub data: Vec<u8>,
-}
-
-impl DataMessage {
-    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, DataMessage)>
-    {
-        let size = header.data_length();
-        let aligned_size = netlink_align(size);
-        if data.len() < aligned_size {
-            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
-        }
-        Ok((aligned_size,
-            DataMessage { header: header, data: (&data[..size]).to_vec() }
-        ))
-    }
-
-    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
-        let slice = self.header.pack(buffer)?;
-        let slice = self.data.pack(slice)?;
-        let padding = self.header.padding();
-        Ok(&mut slice[padding..])
-    }
-}
-
 /// Netlink error message
 /// 
 /// ```text
@@ -220,11 +199,43 @@ impl ErrorMessage {
     }
 }
 
-pub enum Message {
-    Data(DataMessage),
-    Acknowledge,
-    Done,
+/// Netlink data message
+/// 
+/// ```text
+/// | header |    data     | padding |
+/// |--------|-------------|---------|
+/// | Header | u8 * length |         |
+/// ```
+/// 
+/// Header is the message header, See [Header](struct.Header.html).
+/// The data is 4 byte aligned. 
+pub struct Message {
+    pub header: Header,
+    pub data: Vec<u8>,
 }
+
+impl Message {
+    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, Message)>
+    {
+        let size = header.data_length();
+        let aligned_size = netlink_align(size);
+        if data.len() < aligned_size {
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
+        }
+        Ok((aligned_size,
+            Message { header: header, data: (&data[..size]).to_vec() }
+        ))
+    }
+
+    pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
+        let slice = self.header.pack(buffer)?;
+        let slice = self.data.pack(slice)?;
+        let padding = self.header.padding();
+        Ok(&mut slice[padding..])
+    }
+}
+
+pub type Messages = Vec<Message>;
 
 #[cfg(test)]
 mod tests {
@@ -301,7 +312,7 @@ mod tests {
         assert_eq!(header.flags, 0x0010u16);
         assert_eq!(header.sequence, 0x00000001u32);
         assert_eq!(header.pid, 0x00000004u32);
-        let (used, msg) = DataMessage::unpack(&data[used..], header).unwrap();
+        let (used, msg) = Message::unpack(&data[used..], header).unwrap();
         assert_eq!(used, 4usize);
         assert_eq!(msg.data.len(), 2usize);
         assert_eq!(msg.data[0], 0xaau8);
@@ -311,7 +322,7 @@ mod tests {
     #[test]
     fn pack_data_message()
     {
-        let message = DataMessage {
+        let message = Message {
             header: Header {
                 length: 18,
                 identifier: 0x1000,
