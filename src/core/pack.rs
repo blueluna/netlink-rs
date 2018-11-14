@@ -108,6 +108,23 @@ impl NativeUnpack for Vec<u8> {
         buffer.to_vec()
     }
 }
+impl NativeUnpack for Vec<u32> {
+    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
+    {
+        let t_size = mem::size_of::<u32>();
+        let count = buffer.len() / t_size;
+        let mut vec = vec![];
+        for o in 0..count {
+            let offset = o * t_size;
+            vec.push(u32::unpack_unchecked(&buffer[offset..offset + t_size]))
+        }
+        Ok((count * t_size, vec))
+    }
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
+        let r = Self::unpack_with_size(buffer).unwrap();
+        r.1
+    }
+}
 
 pub trait NativePack: Sized {
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
