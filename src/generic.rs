@@ -1,3 +1,5 @@
+//! Netlink generic message
+
 use std::fmt;
 
 use std::convert::{From, Into};
@@ -53,10 +55,15 @@ extended_enum_default!(MulticastAttributeId, u16,
 /// Netlink generic message
 #[derive(Clone)]
 pub struct Message {
+    /// Family identifier, Message to or from this subsystem
     pub family: u16,
+    /// Command to send or receive
     pub command: u8,
+    /// Message version
     pub version: u8,
+    /// Message flags
     pub flags: MessageFlags,
+    /// Message attributes
     pub attributes: Vec<Attribute>,
 }
 
@@ -95,7 +102,7 @@ impl Message {
     /// Set message flags
     pub fn set_flags(&mut self, flags: MessageFlags) { self.flags = flags; }
 
-    // Append a attribute to the message
+    /// Append a attribute to the message
     pub fn append_attribute(&mut self, attr: Attribute)
     {
         self.attributes.push(attr);
@@ -130,7 +137,9 @@ impl fmt::Display for Message {
 /// Maps a identifier with a name.
 #[derive(Clone)]
 pub struct MulticastGroup {
+    /// Multi-cast group identifier
     pub id: u32,
+    /// Multi-cast group name
     pub name: String,
 }
 
@@ -172,8 +181,11 @@ impl fmt::Display for MulticastGroup {
 /// Contains identifier, name and multi-cast groups for a Netlink family.
 #[derive(Clone)]
 pub struct Family {
+    /// Family identifier
     pub id: u16,
+    /// Family name
     pub name: String,
+    /// Family multi-cast groups
     pub multicast_groups: Vec<MulticastGroup>,
 }
 
@@ -212,6 +224,7 @@ impl Family {
         Err(NetlinkError::new(NetlinkErrorKind::NotFound).into())
     }
 
+    /// Request family with the provided name
     pub fn from_name(socket: &mut core::Socket, name: &str)
         -> Result<Family>
     {
@@ -241,6 +254,7 @@ impl Family {
         Err(NetlinkError::new(NetlinkErrorKind::NotFound).into())
     }
 
+    /// Request family with the provided identifier
     pub fn from_id<ID: Into<u16>>(socket: &mut core::Socket, id: ID)
         -> Result<Family>
     {
@@ -269,6 +283,7 @@ impl Family {
         Err(NetlinkError::new(NetlinkErrorKind::NotFound).into())
     }
 
+    /// Request all famelies
     pub fn all(socket: &mut core::Socket) -> Result<Vec<Family>>
     {
         {

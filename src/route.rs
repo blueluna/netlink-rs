@@ -1,3 +1,5 @@
+//! Netlink route messages
+
 use libc;
 
 use errors::{Result, NetlinkError, NetlinkErrorKind};
@@ -62,12 +64,16 @@ extended_enum_default!(AddressFamilyAttribute, u16,
     InterfaceNetworkNameSpaceId => 46,
 );
 
+/// Netlink message for route messages
 pub struct Message {
+    /// The family
     pub family: u16,
+    /// Message attributes
     pub attributes: Vec<Attribute>,
 }
 
 impl Message {
+    /// Create a new message with the provided family
     pub fn new<F: Into<u16>>(family: F) -> Message {
         return Message { family: family.into(), attributes: vec!(), };
     }
@@ -87,16 +93,26 @@ impl SendMessage for Message {
     }
 }
 
+/// Interface information message
+/// 
+/// Used to get information aabout a network interface
 pub struct InterfaceInformationMessage {
+    /// Message family
     pub family: u8,
+    /// Message type
     pub kind: u16,
+    /// Message index
     pub index: i32,
+    /// Message flags
     pub flags: u32,
+    /// Message change
     pub change: u32,
+    /// Message attributes
     pub attributes: Vec<Attribute>,
 }
 
 impl InterfaceInformationMessage {
+    /// Unpack byte slice into InterfaceInformationMessage
     pub fn unpack(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)>
     {
         if data.len() < 16 {

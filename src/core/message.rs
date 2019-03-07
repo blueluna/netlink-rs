@@ -5,18 +5,29 @@ use std::mem::size_of;
 use core::pack::{NativeUnpack, NativePack};
 
 bitflags! {
+    /// Message flags
     pub struct MessageFlags: u16 {
+        /// Request message
         const REQUEST     = 0x0001;
+        /// Multo-part message
         const MULTIPART   = 0x0002;
+        /// Acknowledge message
         const ACKNOWLEDGE = 0x0004;
+        /// Dump message
         const DUMP        = 0x0100 | 0x0200;
     }
 }
 
+/// Message mode
+/// 
+/// Flags wich describes how the messages will be hadled
 #[derive(PartialEq)]
 pub enum MessageMode {
+    /// No special flags
     None,
+    /// Acknowledge message
     Acknowledge,
+    /// Dump message
     Dump,
 }
 
@@ -78,10 +89,15 @@ pub(crate) fn netlink_padding(len: usize) -> usize
 /// 
 #[repr(C)]
 pub struct Header {
+    /// Message length
     pub length: u32,
+    /// Message identifier
     pub identifier: u16,
+    /// Message flags
     pub flags: u16,
+    /// Message sequence
     pub sequence: u32,
+    /// Message process identifier
     pub pid: u32,
 }
 
@@ -210,11 +226,14 @@ impl ErrorMessage {
 /// Header is the message header, See [Header](struct.Header.html).
 /// The data is 4 byte aligned. 
 pub struct Message {
+    /// Message header
     pub header: Header,
+    /// Message data
     pub data: Vec<u8>,
 }
 
 impl Message {
+    /// Unpack Message from byte slice and message header
     pub fn unpack(data: &[u8], header: Header) -> Result<(usize, Message)>
     {
         let size = header.data_length();
@@ -227,6 +246,7 @@ impl Message {
         ))
     }
 
+    /// Pack data into byte slice
     pub fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let slice = self.header.pack(buffer)?;
         let slice = self.data.pack(slice)?;

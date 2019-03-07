@@ -51,7 +51,9 @@ pub fn nested_attribute_array(data: &[u8]) -> Vec<Vec<Attribute>>
 /// The data is 4 byte aligned.
 #[derive(Clone)]
 pub struct Attribute {
+    /// Attribute identifier
     pub identifier: u16,
+    /// Attribute data
     data: Vec<u8>,
 }
 

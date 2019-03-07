@@ -10,9 +10,11 @@ pub struct HardwareAddress {
 }
 
 impl HardwareAddress {
+    /// Get as byte array
     pub fn bytes(&self) -> [u8; 6] {
         self.value.clone()
     }
+    /// Get a pointer to the bytes
     pub fn as_ptr(&self) -> *const u8 {
         self.value.as_ptr()
     }

@@ -36,11 +36,16 @@ impl error::Error for NetlinkError {
     }
 }
 
+/// Errors signaling issues with the Netlink communication
 #[derive(Debug)]
 pub enum Error {
+    /// An std::io error has occured
     Io(io::Error),
+    /// A str UTF-8 error has occured
     Utf8(str::Utf8Error),
+    /// An UTF-8 string conversion error has occured
     FromUtf8(string::FromUtf8Error),
+    /// A Netlink transport error has occured
     Netlink(NetlinkError),
 }
 
@@ -99,4 +104,5 @@ impl From<string::FromUtf8Error> for Error {
     }
 }
 
+/// Result alias for crate errors
 pub type Result<T> = result::Result<T, Error>;

@@ -13,9 +13,13 @@ use core::pack::{NativePack, NativeUnpack};
 use core::message::{ErrorMessage, Header, Message, MessageFlags, MessageMode,
     Messages, netlink_align};
 
+/// Trait for message to be sent by the socket
 pub trait SendMessage {
+    /// Pack the message into the provided byte slice
     fn pack(&self, data: &mut [u8]) -> Result<usize>;
+    /// Get the message type
     fn message_type(&self) -> u16;
+    /// Get the query flags
     fn query_flags(&self) -> MessageFlags;
 }
 
@@ -99,34 +103,34 @@ impl Socket {
         Ok(())
     }
 
-    #[cfg(not(target_env = "musl"))]
     fn message_header(&mut self, iov: &mut [libc::iovec]) -> libc::msghdr
     {
         let addr_ptr = &mut self.peer as *mut system::Address;
-        libc::msghdr {
-            msg_iovlen: iov.len(),
+        #[cfg(not(target_env = "musl"))]
+        let iov_len = iov.len();
+        #[cfg(target_env = "musl")]
+        let iov_len = iov.len() as libc::c_int;
+        #[cfg(all(target_env = "musl", target_pointer_width="64"))]
+        let hdr = libc::msghdr {
+            msg_iovlen: iov_len,
             msg_iov: iov.as_mut_ptr(),
             msg_namelen: size_of::<system::Address>() as u32,
             msg_name: addr_ptr as *mut libc::c_void,
             msg_flags: 0,
             msg_controllen: 0,
             msg_control: 0 as *mut libc::c_void,
-        }
-    }
-
-    #[cfg(target_env = "musl")]
-    fn message_header(&mut self, iov: &mut [libc::iovec]) -> libc::msghdr
-    {
-        let addr_ptr = &mut self.peer as *mut Address;
-        libc::msghdr {
-            msg_iovlen: iov.len() as i32,
+        };
+        #[cfg(not(all(target_env = "musl", target_pointer_width="64")))]
+        let hdr = libc::msghdr {
+            msg_iovlen: iov_len,
             msg_iov: iov.as_mut_ptr(),
             msg_namelen: size_of::<system::Address>() as u32,
             msg_name: addr_ptr as *mut libc::c_void,
             msg_flags: 0,
             msg_controllen: 0,
             msg_control: 0 as *mut libc::c_void,
-        }
+        };
+        hdr
     }
 
     /// Send the provided package on the socket

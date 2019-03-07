@@ -1,3 +1,5 @@
+//! Netlink core parts
+
 #[macro_use] mod helpers;
 mod hardware_address;
 mod pack;
@@ -42,5 +44,6 @@ pub use self::pack::{NativeUnpack, NativePack, pack_vec};
 pub trait ConvertFrom<T: Sized>
     where Self: Sized
 {
+    /// Convert value from one type to the other, returning None if conversion failed
     fn convert_from(value: T) -> Option<Self>;
 }

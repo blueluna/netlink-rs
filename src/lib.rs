@@ -1,3 +1,8 @@
+//! Partial Rust implementation of the Linux kernel Netlink protocol
+//! 
+//! Currently this crate is mostly used together with the nl80211-rs crate to
+//! explore the Linux kernel Netlink interface for 802.11 devices.
+
 extern crate libc;
 extern crate byteorder;
 #[macro_use] extern crate bitflags;

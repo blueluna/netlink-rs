@@ -17,11 +17,14 @@ pub(crate) fn slice_copy(src: &[u8], dst: &mut [u8], length: usize)
     }
 }
 
+/// Trait for unpacking byte slice into a value, using native endian
 pub trait NativeUnpack: Sized {
+    /// Unpack byte slice into value
     fn unpack(buffer: &[u8]) -> Result<Self>
     {
         Self::unpack_with_size(buffer).and_then(|r| Ok(r.1))
     }
+    /// Unpack byte slice into value, also returning size used
     fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
     {
         let size = mem::size_of::<Self>();
@@ -30,6 +33,7 @@ pub trait NativeUnpack: Sized {
         }
         Ok((mem::size_of::<Self>(), Self::unpack_unchecked(buffer)))
     }
+    /// Unpack byte slice into value without failing
     fn unpack_unchecked(buffer: &[u8]) -> Self;
 }
 
@@ -126,7 +130,9 @@ impl NativeUnpack for Vec<u32> {
     }
 }
 
+/// Pack value into byte slice, using native endian
 pub trait NativePack: Sized {
+    /// Pack value into byte slice, returning the unused part of the slice
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let type_size = mem::size_of::<Self>();
         if buffer.len() < type_size {
@@ -135,6 +141,7 @@ pub trait NativePack: Sized {
         Self::pack_unchecked(&self, buffer);
         Ok(&mut buffer[type_size..])
     }
+    /// Pack value into slice without failing
     fn pack_unchecked(&self, buffer: &mut [u8]);
 }
 
@@ -221,6 +228,7 @@ impl NativePack for Vec<u8> {
     }
 }
 
+/// Pack a vector of values into byte slice
 pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>)
     -> Result<usize>
 {
