@@ -3,13 +3,12 @@ use std::ptr;
 
 use byteorder::{ByteOrder, NativeEndian};
 
-use errors::{NetlinkError, NetlinkErrorKind};
 use core::hardware_address::HardwareAddress;
-use ::errors::Result;
+use errors::Result;
+use errors::{NetlinkError, NetlinkErrorKind};
 
 #[inline]
-pub(crate) fn slice_copy(src: &[u8], dst: &mut [u8], length: usize)
-{
+pub(crate) fn slice_copy(src: &[u8], dst: &mut [u8], length: usize) {
     assert!(src.len() >= length);
     assert!(dst.len() >= length);
     unsafe {
@@ -20,13 +19,11 @@ pub(crate) fn slice_copy(src: &[u8], dst: &mut [u8], length: usize)
 /// Trait for unpacking byte slice into a value, using native endian
 pub trait NativeUnpack: Sized {
     /// Unpack byte slice into value
-    fn unpack(buffer: &[u8]) -> Result<Self>
-    {
+    fn unpack(buffer: &[u8]) -> Result<Self> {
         Self::unpack_with_size(buffer).and_then(|r| Ok(r.1))
     }
     /// Unpack byte slice into value, also returning size used
-    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
-    {
+    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)> {
         let size = mem::size_of::<Self>();
         if buffer.len() < size {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
@@ -48,56 +45,47 @@ impl NativeUnpack for i8 {
     }
 }
 impl NativeUnpack for u16 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_u16(buffer)
     }
 }
 impl NativeUnpack for i16 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_i16(buffer)
     }
 }
 impl NativeUnpack for u32 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_u32(buffer)
     }
 }
 impl NativeUnpack for i32 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_i32(buffer)
     }
 }
 impl NativeUnpack for u64 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_u64(buffer)
     }
 }
 impl NativeUnpack for i64 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_i64(buffer)
     }
 }
 impl NativeUnpack for f32 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_f32(buffer)
     }
 }
 impl NativeUnpack for f64 {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         NativeEndian::read_f64(buffer)
     }
 }
 impl NativeUnpack for HardwareAddress {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         HardwareAddress::from(&buffer[0..6])
     }
 }
@@ -113,8 +101,7 @@ impl NativeUnpack for Vec<u8> {
     }
 }
 impl NativeUnpack for Vec<u32> {
-    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
-    {
+    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)> {
         let t_size = mem::size_of::<u32>();
         let count = buffer.len() / t_size;
         let mut vec = vec![];
@@ -146,68 +133,57 @@ pub trait NativePack: Sized {
 }
 
 impl NativePack for u8 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         buffer[0] = *self;
     }
 }
 impl NativePack for i8 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         buffer[0] = *self as u8;
     }
 }
 impl NativePack for u16 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u16(buffer, *self);
     }
 }
 impl NativePack for i16 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i16(buffer, *self);
     }
 }
 impl NativePack for u32 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u32(buffer, *self);
     }
 }
 impl NativePack for i32 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i32(buffer, *self);
     }
 }
 impl NativePack for u64 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u64(buffer, *self);
     }
 }
 impl NativePack for i64 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i64(buffer, *self);
     }
 }
 impl NativePack for f32 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_f32(buffer, *self);
     }
 }
 impl NativePack for f64 {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_f64(buffer, *self);
     }
 }
 impl NativePack for HardwareAddress {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         unsafe {
             ptr::copy_nonoverlapping(self.as_ptr(), buffer.as_mut_ptr(), 6);
         }
@@ -222,16 +198,13 @@ impl NativePack for Vec<u8> {
         Self::pack_unchecked(&self, buffer);
         Ok(&mut buffer[size..])
     }
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         slice_copy(&self, buffer, self.len());
     }
 }
 
 /// Pack a vector of values into byte slice
-pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>)
-    -> Result<usize>
-{
+pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>) -> Result<usize> {
     let type_size = mem::size_of::<T>();
     let size = type_size * v.len();
     if buffer.len() < size {
@@ -248,16 +221,16 @@ pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fmt;
     use std::cmp;
+    use std::fmt;
 
     fn pack_unpack_test<T>(bytes: &[u8], value: T)
-        where T: NativePack + NativeUnpack + fmt::Debug + cmp::PartialEq + Sized
+    where
+        T: NativePack + NativeUnpack + fmt::Debug + cmp::PartialEq + Sized,
     {
         let value_size = mem::size_of::<T>();
         assert_eq!(bytes.len(), value_size);
-        let (unpacked_size, unpacked_value) = T::unpack_with_size(bytes)
-            .unwrap();
+        let (unpacked_size, unpacked_value) = T::unpack_with_size(bytes).unwrap();
         assert_eq!(unpacked_size, value_size);
         assert_eq!(unpacked_value, value);
         let unpacked_value = T::unpack(bytes).unwrap();
@@ -279,7 +252,6 @@ mod tests {
             assert_eq!(left.len(), 2);
         }
     }
-
 
     #[test]
     fn pack_unpack_u8() {
@@ -313,14 +285,18 @@ mod tests {
 
     #[test]
     fn pack_unpack_u64() {
-        pack_unpack_test(&[0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11],
-            0x1122334455667788u64.to_le());
+        pack_unpack_test(
+            &[0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11],
+            0x1122334455667788u64.to_le(),
+        );
     }
 
     #[test]
     fn pack_unpack_i64() {
-        pack_unpack_test(&[0x11, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x88],
-            (-8637284766759618799i64).to_le());
+        pack_unpack_test(
+            &[0x11, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x88],
+            (-8637284766759618799i64).to_le(),
+        );
     }
 
     #[test]
@@ -342,7 +318,6 @@ mod tests {
         let mut buffer = vec![0u8; mem::size_of::<u32>() * v.len()];
         let size = pack_vec(&mut buffer, &v).unwrap();
         assert_eq!(size, 8usize);
-        assert_eq!(buffer, &[0x01, 0x00, 0x00, 0x00,
-            0x02, 0x00, 0x00, 0x00]);
+        assert_eq!(buffer, &[0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00]);
     }
 }

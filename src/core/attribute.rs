@@ -1,11 +1,11 @@
+use std::ffi::{CStr, CString};
 use std::mem;
 use std::str;
-use std::ffi::{CStr, CString};
 
-use errors::{Result, NetlinkError, NetlinkErrorKind};
-use core::pack::{NativeUnpack, NativePack};
 use core::hardware_address::HardwareAddress;
-use core::message::{netlink_padding};
+use core::message::netlink_padding;
+use core::pack::{NativePack, NativeUnpack};
+use errors::{NetlinkError, NetlinkErrorKind, Result};
 
 /// Parsing an array of nested attributes
 ///
@@ -18,8 +18,7 @@ use core::message::{netlink_padding};
 /// ---------------------------------------------------------------
 ///    u16    u16    u8 * (size - 4)
 /// ```
-pub fn nested_attribute_array(data: &[u8]) -> Vec<Vec<Attribute>>
-{
+pub fn nested_attribute_array(data: &[u8]) -> Vec<Vec<Attribute>> {
     let vs = mem::size_of::<u16>();
     let mut attrs = vec![];
     let mut d = &data[..];
@@ -27,18 +26,15 @@ pub fn nested_attribute_array(data: &[u8]) -> Vec<Vec<Attribute>>
         let size = u16::unpack(&d).unwrap();
         let _index = u16::unpack(&d[vs..]).unwrap();
         if d.len() > size as usize {
-            let (_, attributes) = Attribute::unpack_all(
-                &d[(vs * 2)..size as usize]);
+            let (_, attributes) = Attribute::unpack_all(&d[(vs * 2)..size as usize]);
             attrs.push(attributes);
-        }
-        else {
+        } else {
             break;
         }
         d = &d[size as usize..];
     }
     attrs
 }
-
 
 /// Netlink attribute
 ///
@@ -47,7 +43,7 @@ pub fn nested_attribute_array(data: &[u8]) -> Vec<Vec<Attribute>>
 /// |--------|------------|--------------------|---------|
 /// |   u16  |     u16    |  u8 * (length - 4) |         |
 /// ```
-/// 
+///
 /// The data is 4 byte aligned.
 #[derive(Clone)]
 pub struct Attribute {
@@ -66,42 +62,52 @@ impl Attribute {
         let mut attrs = vec![];
         loop {
             match Attribute::unpack_with_size(&data[pos..]) {
-                Ok(r) => { attrs.push(r.1); pos += r.0; },
-                Err(_) => { break; },
+                Ok(r) => {
+                    attrs.push(r.1);
+                    pos += r.0;
+                }
+                Err(_) => {
+                    break;
+                }
             }
         }
         (pos, attrs)
     }
 
     /// Create a new string attribute with provided identifier
-    pub fn new_bytes<ID: Into<u16>>(identifier: ID, value: &[u8]) -> Attribute
-    {
-        Attribute { identifier: identifier.into(), data: value.to_vec() }
+    pub fn new_bytes<ID: Into<u16>>(identifier: ID, value: &[u8]) -> Attribute {
+        Attribute {
+            identifier: identifier.into(),
+            data: value.to_vec(),
+        }
     }
 
     /// Create a new string attribute with provided identifier
-    pub fn new_string_with_nul<ID: Into<u16>>(identifier: ID, value: &str)
-        -> Attribute {
+    pub fn new_string_with_nul<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute {
         let c_string = CString::new(value).unwrap();
-        Attribute { identifier: identifier.into(),
-            data: c_string.into_bytes_with_nul() }
+        Attribute {
+            identifier: identifier.into(),
+            data: c_string.into_bytes_with_nul(),
+        }
     }
 
     /// Create a new string attribute with provided identifier
-    pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute
-    {
+    pub fn new_string<ID: Into<u16>>(identifier: ID, value: &str) -> Attribute {
         let string = CString::new(value).unwrap();
-        Attribute { identifier: identifier.into(),
-            data: string.into_bytes() }
+        Attribute {
+            identifier: identifier.into(),
+            data: string.into_bytes(),
+        }
     }
 
     /// Create a new attribute from a type that can be packed into a byte slice
-    pub fn new<ID: Into<u16>, V: NativePack>(identifier: ID, value: V)
-        -> Attribute
-    {
+    pub fn new<ID: Into<u16>, V: NativePack>(identifier: ID, value: V) -> Attribute {
         let mut data = vec![0u8; mem::size_of::<V>()];
         value.pack_unchecked(&mut data);
-        Attribute { identifier: identifier.into(), data: data }
+        Attribute {
+            identifier: identifier.into(),
+            data: data,
+        }
     }
 
     /// Get the length of the data
@@ -150,7 +156,7 @@ impl Attribute {
             Ok(bytes) => {
                 let s = bytes.to_str()?;
                 Ok(String::from(s))
-            },
+            }
             Err(_) => {
                 let s = String::from_utf8(self.data.clone())?;
                 Ok(s)
@@ -185,8 +191,7 @@ impl NativePack for Attribute {
 }
 
 impl NativeUnpack for Attribute {
-    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)>
-    {
+    fn unpack_with_size(buffer: &[u8]) -> Result<(usize, Self)> {
         if buffer.len() < Attribute::HEADER_SIZE {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
@@ -198,32 +203,37 @@ impl NativeUnpack for Attribute {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         let attr_data = (&buffer[4..length]).to_vec();
-        Ok((length + padding,
-                Attribute { identifier: identifier, data: attr_data }))
+        Ok((
+            length + padding,
+            Attribute {
+                identifier: identifier,
+                data: attr_data,
+            },
+        ))
     }
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         let length = u16::unpack_unchecked(buffer) as usize;
         let identifier = u16::unpack_unchecked(&buffer[2..]);
         let attr_data = (&buffer[4..length]).to_vec();
-        Attribute { identifier: identifier, data: attr_data }
+        Attribute {
+            identifier: identifier,
+            data: attr_data,
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn unpack_attribute()
-    {
+    fn unpack_attribute() {
         let data = [
             0x07, 0x00, // size
             0x00, 0x10, // identifier
             0x11, 0xaa, 0x55, // data
             0xee, // padding
-            ];
+        ];
         let (used, attr) = Attribute::unpack_with_size(&data).unwrap();
         assert_eq!(used, 8);
         assert_eq!(attr.data.len(), 3usize);
@@ -235,8 +245,8 @@ mod tests {
         let data = [
             0x08, 0x00, // size
             0x00, 0x10, // identifier
-            0x11, 0xaa, 0x55, 0xee,// data
-            ];
+            0x11, 0xaa, 0x55, 0xee, // data
+        ];
         let (used, attr) = Attribute::unpack_with_size(&data).unwrap();
         assert_eq!(used, 8);
         assert_eq!(attr.data.len(), 4usize);
@@ -248,8 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn unpack_attributes()
-    {
+    fn unpack_attributes() {
         let data = [
             0x07, 0x00, // size
             0x00, 0x10, // identifier
@@ -257,8 +266,8 @@ mod tests {
             0xee, // padding
             0x08, 0x00, // size
             0x00, 0x10, // identifier
-            0x11, 0xaa, 0x55, 0xee,// data
-            ];
+            0x11, 0xaa, 0x55, 0xee, // data
+        ];
         let (used, attrs) = Attribute::unpack_all(&data);
         assert_eq!(used, 16usize);
         assert_eq!(attrs.len(), 2usize);
@@ -278,14 +287,13 @@ mod tests {
     }
 
     #[test]
-    fn pack_attribute()
-    {
+    fn pack_attribute() {
         let data = [
             0x07, 0x00, // size
             0x55, 0x81, // identifier
             0x11, 0xaa, 0x55, // data
             0x00, // padding
-            ];
+        ];
         let attr = Attribute {
             identifier: 0x8155,
             data: vec![0x11, 0xaa, 0x55],

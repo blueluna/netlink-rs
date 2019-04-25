@@ -1,6 +1,6 @@
 use libc;
-use std::mem::size_of;
 use std::io;
+use std::mem::size_of;
 use std::os::unix::io::RawFd;
 
 #[repr(C)]
@@ -21,38 +21,46 @@ macro_rules! ccall {
     }};
 }
 
-pub fn get_page_size() -> usize
-{
+pub fn get_page_size() -> usize {
     unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }
 }
 
-pub fn netlink_socket(service: i32) -> io::Result<RawFd>
-{
-    Ok(ccall!(libc::socket(libc::AF_NETLINK,
+pub fn netlink_socket(service: i32) -> io::Result<RawFd> {
+    Ok(ccall!(libc::socket(
+        libc::AF_NETLINK,
         libc::SOCK_RAW | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC,
-        service)))
+        service
+    )))
 }
 
-pub fn set_socket_option<T: Sized>(socket: RawFd, level: i32, name: i32,
-    value: T) -> io::Result<()>
-{
+pub fn set_socket_option<T: Sized>(
+    socket: RawFd,
+    level: i32,
+    name: i32,
+    value: T,
+) -> io::Result<()> {
     let value_ptr: *const T = &value;
-    ccall!(libc::setsockopt(socket, level, name, value_ptr
-        as *mut libc::c_void, size_of::<T>() as u32));
+    ccall!(libc::setsockopt(
+        socket,
+        level,
+        name,
+        value_ptr as *mut libc::c_void,
+        size_of::<T>() as u32
+    ));
     Ok(())
 }
 
-pub fn bind(socket: RawFd, address: &Address) -> io::Result<()>
-{
+pub fn bind(socket: RawFd, address: &Address) -> io::Result<()> {
     let addr_ptr: *const Address = address;
-    ccall!(libc::bind(socket, addr_ptr as *const libc::sockaddr,
-        size_of::<Address>() as u32));
+    ccall!(libc::bind(
+        socket,
+        addr_ptr as *const libc::sockaddr,
+        size_of::<Address>() as u32
+    ));
     Ok(())
 }
 
-pub fn get_socket_address(socket: RawFd, address: &mut Address)
-    -> io::Result<()>
-{
+pub fn get_socket_address(socket: RawFd, address: &mut Address) -> io::Result<()> {
     let addr_ptr = address as *mut Address as *mut libc::sockaddr;
     let mut addr_len = size_of::<Address>() as libc::socklen_t;
     let addr_len_ptr: *mut libc::socklen_t = &mut addr_len;
@@ -60,15 +68,10 @@ pub fn get_socket_address(socket: RawFd, address: &mut Address)
     Ok(())
 }
 
-pub fn send_message(socket: RawFd, header: &libc::msghdr, flags: i32)
-    -> io::Result<usize>
-{
-    Ok(ccall!(libc::sendmsg(socket, header as *const libc::msghdr, flags))
-        as usize)
+pub fn send_message(socket: RawFd, header: &libc::msghdr, flags: i32) -> io::Result<usize> {
+    Ok(ccall!(libc::sendmsg(socket, header as *const libc::msghdr, flags)) as usize)
 }
 
-pub fn receive_message(socket: RawFd, header: &mut libc::msghdr)
-    -> io::Result<usize>
-{
+pub fn receive_message(socket: RawFd, header: &mut libc::msghdr) -> io::Result<usize> {
     Ok(ccall!(libc::recvmsg(socket, header as *mut libc::msghdr, 0)) as usize)
 }

@@ -2,9 +2,8 @@
 
 use libc;
 
-use errors::{Result, NetlinkError, NetlinkErrorKind};
-use core::{SendMessage, Attribute, MessageFlags, NativeUnpack, NativePack,
-    pack_vec, ConvertFrom};
+use core::{pack_vec, Attribute, ConvertFrom, MessageFlags, NativePack, NativeUnpack, SendMessage};
+use errors::{NetlinkError, NetlinkErrorKind, Result};
 
 /// Netlinkt route command
 extended_enum!(FamilyId, u16,
@@ -75,26 +74,30 @@ pub struct Message {
 impl Message {
     /// Create a new message with the provided family
     pub fn new<F: Into<u16>>(family: F) -> Message {
-        return Message { family: family.into(), attributes: vec!(), };
+        return Message {
+            family: family.into(),
+            attributes: vec![],
+        };
     }
 }
 
 impl SendMessage for Message {
-    fn pack(&self, data: &mut [u8]) -> Result<usize>
-    {
+    fn pack(&self, data: &mut [u8]) -> Result<usize> {
         let kind: u8 = libc::AF_PACKET as u8;
         let slice = kind.pack(data)?;
         let size = pack_vec(slice, &self.attributes)?;
         Ok(size + 1)
     }
-    fn message_type(&self) -> u16 { self.family }
+    fn message_type(&self) -> u16 {
+        self.family
+    }
     fn query_flags(&self) -> MessageFlags {
         MessageFlags::REQUEST | MessageFlags::DUMP
     }
 }
 
 /// Interface information message
-/// 
+///
 /// Used to get information aabout a network interface
 pub struct InterfaceInformationMessage {
     /// Message family
@@ -113,11 +116,9 @@ pub struct InterfaceInformationMessage {
 
 impl InterfaceInformationMessage {
     /// Unpack byte slice into InterfaceInformationMessage
-    pub fn unpack(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)>
-    {
+    pub fn unpack(data: &[u8]) -> Result<(usize, InterfaceInformationMessage)> {
         if data.len() < 16 {
-            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData)
-                .into());
+            return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         let family = u8::unpack_unchecked(&data[0..]);
         // reserved u8
@@ -126,21 +127,24 @@ impl InterfaceInformationMessage {
         let flags = u32::unpack_unchecked(&data[8..]);
         let change = u32::unpack_unchecked(&data[12..]);
         let (used, attributes) = Attribute::unpack_all(&data[16..]);
-        Ok((used + 16, InterfaceInformationMessage {
-            family: family,
-            kind: kind,
-            index: index,
-            flags: flags,
-            change: change,
-            attributes: attributes,
-            }))
+        Ok((
+            used + 16,
+            InterfaceInformationMessage {
+                family: family,
+                kind: kind,
+                index: index,
+                flags: flags,
+                change: change,
+                attributes: attributes,
+            },
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::{Socket, Protocol};
+    use core::{Protocol, Socket};
 
     #[test]
     fn route_get_link() {

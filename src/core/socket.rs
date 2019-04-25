@@ -1,17 +1,18 @@
-use std::mem::size_of;
-use std::io;
-use std::os::unix::io::{RawFd, AsRawFd};
 use std::collections::HashMap;
+use std::io;
+use std::mem::size_of;
+use std::os::unix::io::{AsRawFd, RawFd};
 
 use libc;
 
-use errors::{Result, NetlinkError, NetlinkErrorKind};
+use errors::{NetlinkError, NetlinkErrorKind, Result};
 
-use core::Protocol;
-use core::system;
+use core::message::{
+    netlink_align, ErrorMessage, Header, Message, MessageFlags, MessageMode, Messages,
+};
 use core::pack::{NativePack, NativeUnpack};
-use core::message::{ErrorMessage, Header, Message, MessageFlags, MessageMode,
-    Messages, netlink_align};
+use core::system;
+use core::Protocol;
 
 /// Trait for message to be sent by the socket
 pub trait SendMessage {
@@ -55,19 +56,15 @@ pub struct Socket {
 
 impl Socket {
     /// Create a new Socket
-    pub fn new(protocol: Protocol) -> Result<Socket>
-    {
+    pub fn new(protocol: Protocol) -> Result<Socket> {
         Socket::new_multicast(protocol, 0)
     }
 
     /// Create a new Socket which subscribes to the provided multi-cast groups
-    pub fn new_multicast(protocol: Protocol, groups: u32) -> Result<Socket>
-    {
+    pub fn new_multicast(protocol: Protocol, groups: u32) -> Result<Socket> {
         let socket = system::netlink_socket(protocol as i32)?;
-        system::set_socket_option(socket,
-            libc::SOL_SOCKET, libc::SO_SNDBUF, 32768)?;
-        system::set_socket_option(socket,
-            libc::SOL_SOCKET, libc::SO_RCVBUF, 32768)?;
+        system::set_socket_option(socket, libc::SOL_SOCKET, libc::SO_SNDBUF, 32768)?;
+        system::set_socket_option(socket, libc::SOL_SOCKET, libc::SO_RCVBUF, 32768)?;
         let mut local_addr = system::Address {
             family: libc::AF_NETLINK as u16,
             _pad: 0,
@@ -96,21 +93,23 @@ impl Socket {
     }
 
     /// Subscribe to the multi-cast group provided
-    pub fn multicast_group_subscribe(&mut self, group: u32) -> Result<()>
-    {
-        system::set_socket_option(self.socket, libc::SOL_NETLINK,
-            NETLINK_ADD_MEMBERSHIP, group)?;
+    pub fn multicast_group_subscribe(&mut self, group: u32) -> Result<()> {
+        system::set_socket_option(
+            self.socket,
+            libc::SOL_NETLINK,
+            NETLINK_ADD_MEMBERSHIP,
+            group,
+        )?;
         Ok(())
     }
 
-    fn message_header(&mut self, iov: &mut [libc::iovec]) -> libc::msghdr
-    {
+    fn message_header(&mut self, iov: &mut [libc::iovec]) -> libc::msghdr {
         let addr_ptr = &mut self.peer as *mut system::Address;
         #[cfg(not(target_env = "musl"))]
         let iov_len = iov.len();
         #[cfg(target_env = "musl")]
         let iov_len = iov.len() as libc::c_int;
-        #[cfg(all(target_env = "musl", target_pointer_width="64"))]
+        #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
         let hdr = libc::msghdr {
             msg_iovlen: iov_len,
             msg_iov: iov.as_mut_ptr(),
@@ -120,7 +119,7 @@ impl Socket {
             msg_controllen: 0,
             msg_control: 0 as *mut libc::c_void,
         };
-        #[cfg(not(all(target_env = "musl", target_pointer_width="64")))]
+        #[cfg(not(all(target_env = "musl", target_pointer_width = "64")))]
         let hdr = libc::msghdr {
             msg_iovlen: iov_len,
             msg_iov: iov.as_mut_ptr(),
@@ -134,8 +133,7 @@ impl Socket {
     }
 
     /// Send the provided package on the socket
-    pub fn send_message<S: SendMessage>(&mut self, payload: &S) -> Result<usize>
-    {
+    pub fn send_message<S: SendMessage>(&mut self, payload: &S) -> Result<usize> {
         let hdr_size = size_of::<Header>();
         let flags = payload.query_flags();
         let payload_size = payload.pack(&mut self.send_buffer[hdr_size..])?;
@@ -151,30 +149,25 @@ impl Socket {
             let _slice = hdr.pack(&mut self.send_buffer[..hdr_size])?;
         }
 
-        let mut iov = [
-            libc::iovec {
-                iov_base: self.send_buffer.as_mut_ptr() as *mut libc::c_void,
-                iov_len: size,
-            },
-        ];
+        let mut iov = [libc::iovec {
+            iov_base: self.send_buffer.as_mut_ptr() as *mut libc::c_void,
+            iov_len: size,
+        }];
 
         let msg_header = self.message_header(&mut iov);
 
-        self.sent.insert(self.sequence_next, MessageMode::from(flags));
+        self.sent
+            .insert(self.sequence_next, MessageMode::from(flags));
         self.sequence_next += 1;
 
         Ok(system::send_message(self.socket, &msg_header, 0)?)
     }
 
-    fn receive_bytes(&mut self) -> Result<usize>
-    {
-        let mut iov = [
-            libc::iovec {
-                iov_base: self.receive_buffer.as_mut_ptr()
-                    as *mut libc::c_void,
-                iov_len: self.page_size,
-            },
-        ];
+    fn receive_bytes(&mut self) -> Result<usize> {
+        let mut iov = [libc::iovec {
+            iov_base: self.receive_buffer.as_mut_ptr() as *mut libc::c_void,
+            iov_len: self.page_size,
+        }];
         let mut msg_header = self.message_header(&mut iov);
         let result = system::receive_message(self.socket, &mut msg_header);
         match result {
@@ -184,22 +177,18 @@ impl Socket {
                 }
                 Err(err.into())
             }
-            Ok(bytes) => {
-                Ok(bytes)
-            }
+            Ok(bytes) => Ok(bytes),
         }
     }
 
     /// Receive binary data on the socket
-    pub fn receive(&mut self) -> Result<Vec<u8>>
-    {
+    pub fn receive(&mut self) -> Result<Vec<u8>> {
         let bytes = self.receive_bytes()?;
         Ok(self.receive_buffer[0..bytes].to_vec())
     }
 
     /// Receive Messages pending on the socket
-    pub fn receive_messages(&mut self) -> Result<Messages>
-    {
+    pub fn receive_messages(&mut self) -> Result<Messages> {
         let mut more_messages = true;
         let mut result_messages = Vec::new();
         while more_messages {
@@ -211,8 +200,7 @@ impl Socket {
                     if bytes == 0 {
                         break;
                     }
-                    more_messages = self.unpack_data(bytes,
-                        &mut result_messages)?;
+                    more_messages = self.unpack_data(bytes, &mut result_messages)?;
                 }
             }
         }
@@ -220,12 +208,16 @@ impl Socket {
     }
 
     fn check_sequence(&self, sequence: &u32) -> bool {
-        if *sequence == 0 { return true; }
+        if *sequence == 0 {
+            return true;
+        }
         self.sent.contains_key(sequence)
     }
 
     fn expect_more(&self, sequence: &u32) -> bool {
-        if *sequence == 0 { return false; }
+        if *sequence == 0 {
+            return false;
+        }
         assert!(self.sent.contains_key(sequence));
         if let Some(f) = self.sent.get(sequence) {
             return *f != MessageMode::None;
@@ -233,9 +225,7 @@ impl Socket {
         false
     }
 
-    fn unpack_data(&mut self, bytes: usize, messages: &mut Messages)
-        -> Result<bool>
-    {
+    fn unpack_data(&mut self, bytes: usize, messages: &mut Messages) -> Result<bool> {
         let mut more_messages = false;
         let data = &self.receive_buffer[..bytes];
         let mut pos = 0;
@@ -243,39 +233,31 @@ impl Socket {
             let (used, header) = Header::unpack_with_size(&data[pos..])?;
             pos = pos + used;
             if !header.check_pid(self.local.pid) {
-                return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
-                    .into());
+                return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue).into());
             }
             if !self.check_sequence(&header.sequence) {
-                return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue)
-                    .into());
+                return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue).into());
             }
             let sequence = header.sequence;
             if header.identifier == NLMSG_NOOP {
                 continue;
-            }
-            else if header.identifier == NLMSG_ERROR {
+            } else if header.identifier == NLMSG_ERROR {
                 self.sent.remove(&sequence);
                 let (used, emsg) = ErrorMessage::unpack(&data[pos..], header)?;
                 pos = pos + used;
                 if emsg.code != 0 {
-                    return Err(
-                        io::Error::from_raw_os_error(-emsg.code).into());
-                }
-                else {
+                    return Err(io::Error::from_raw_os_error(-emsg.code).into());
+                } else {
                     more_messages = false;
                 }
-            }
-            else if header.identifier == NLMSG_DONE {
+            } else if header.identifier == NLMSG_DONE {
                 self.sent.remove(&sequence);
                 more_messages = false;
                 pos = pos + header.aligned_data_length();
-            }
-            else {
-                let flags = MessageFlags::from_bits(header.flags)
-                    .unwrap_or(MessageFlags::empty());
-                more_messages = flags.contains(MessageFlags::MULTIPART)
-                    || self.expect_more(&sequence);
+            } else {
+                let flags = MessageFlags::from_bits(header.flags).unwrap_or(MessageFlags::empty());
+                more_messages =
+                    flags.contains(MessageFlags::MULTIPART) || self.expect_more(&sequence);
                 let (used, msg) = Message::unpack(&data[pos..], header)?;
                 pos = pos + used;
                 messages.push(msg);
@@ -286,8 +268,7 @@ impl Socket {
 }
 
 impl AsRawFd for Socket {
-    fn as_raw_fd(&self) -> RawFd
-    {
+    fn as_raw_fd(&self) -> RawFd {
         self.socket
     }
 }

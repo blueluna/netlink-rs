@@ -1,9 +1,9 @@
 use std::error;
-use std::result;
-use std::io;
 use std::fmt;
-use std::string;
+use std::io;
+use std::result;
 use std::str;
+use std::string;
 
 #[derive(Debug)]
 pub enum NetlinkErrorKind {

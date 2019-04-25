@@ -9,9 +9,9 @@ repository="https://github.com/blueluna/netlink-rs"
 keywords = ["netlink"]
 
 [dependencies]
-libc = "0.2"
-byteorder = "1.2"
 bitflags =  "1.0"
+byteorder = "1.3"
+libc = "0.2"
 
 [dev-dependencies]
-mio = "0.5"
+mio = "0.6"

@@ -1,8 +1,8 @@
-use errors::{Result, NetlinkError, NetlinkErrorKind};
+use errors::{NetlinkError, NetlinkErrorKind, Result};
 use std::fmt;
 use std::mem::size_of;
 
-use core::pack::{NativeUnpack, NativePack};
+use core::pack::{NativePack, NativeUnpack};
 
 bitflags! {
     /// Message flags
@@ -19,7 +19,7 @@ bitflags! {
 }
 
 /// Message mode
-/// 
+///
 /// Flags wich describes how the messages will be hadled
 #[derive(PartialEq)]
 pub enum MessageMode {
@@ -35,11 +35,9 @@ impl From<MessageFlags> for MessageMode {
     fn from(value: MessageFlags) -> MessageMode {
         if value.intersects(MessageFlags::DUMP) {
             MessageMode::Dump
-        }
-        else if value.intersects(MessageFlags::ACKNOWLEDGE) {
+        } else if value.intersects(MessageFlags::ACKNOWLEDGE) {
             MessageMode::Acknowledge
-        }
-        else {
+        } else {
             MessageMode::None
         }
     }
@@ -57,36 +55,33 @@ impl From<MessageMode> for MessageFlags {
 }
 
 #[inline]
-pub(crate) fn align_to(len: usize, align_to: usize) -> usize
-{
+pub(crate) fn align_to(len: usize, align_to: usize) -> usize {
     (len + align_to - 1) & !(align_to - 1)
 }
 
 #[inline]
-pub(crate) fn netlink_align(len: usize) -> usize
-{
+pub(crate) fn netlink_align(len: usize) -> usize {
     align_to(len, 4usize)
 }
 
 #[inline]
-pub(crate) fn netlink_padding(len: usize) -> usize
-{
+pub(crate) fn netlink_padding(len: usize) -> usize {
     netlink_align(len) - len
 }
 
 /// Netlink message header
-/// 
+///
 /// ```text
-/// | length | identifier | flags | sequence | pid | 
+/// | length | identifier | flags | sequence | pid |
 /// |--------|------------|-------|----------|-----|
 /// |   u32  |     u16    |  u16  |   u32    | u32 |
 /// ```
-/// 
+///
 /// Length is the total length of the message in bytes, including the header.
 /// Message data comes after the header. The data is 4 byte aligned, which
 /// means that the actual length message length might be longer than indicated
 /// by the length field.
-/// 
+///
 #[repr(C)]
 pub struct Header {
     /// Message length
@@ -143,21 +138,17 @@ impl Header {
 
 impl fmt::Display for Header {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
+        write!(
+            f,
             "Length: {0:08x} {0}\nIdentifier: {1:04x}\nFlags: {2:04x}\n\
-            Sequence: {3:08x} {3}\nPID: {4:08x} {4}",
-            self.length,
-            self.identifier,
-            self.flags,
-            self.sequence,
-            self.pid,
+             Sequence: {3:08x} {3}\nPID: {4:08x} {4}",
+            self.length, self.identifier, self.flags, self.sequence, self.pid,
         )
     }
 }
 
 impl NativePack for Header {
-    fn pack_unchecked(&self, buffer: &mut [u8])
-    {
+    fn pack_unchecked(&self, buffer: &mut [u8]) {
         self.length.pack_unchecked(buffer);
         self.identifier.pack_unchecked(&mut buffer[4..]);
         self.flags.pack_unchecked(&mut buffer[6..]);
@@ -167,8 +158,7 @@ impl NativePack for Header {
 }
 
 impl NativeUnpack for Header {
-    fn unpack_unchecked(buffer: &[u8]) -> Self
-    {
+    fn unpack_unchecked(buffer: &[u8]) -> Self {
         let length = u32::unpack_unchecked(&buffer[..]);
         let identifier = u16::unpack_unchecked(&buffer[4..]);
         let flags = u16::unpack_unchecked(&buffer[6..]);
@@ -179,18 +169,19 @@ impl NativeUnpack for Header {
             identifier: identifier,
             flags: flags,
             sequence: sequence,
-            pid: pid, }
+            pid: pid,
+        }
     }
 }
 
 /// Netlink error message
-/// 
+///
 /// ```text
 /// | header |  error code  | Original Header |
 /// |--------|--------------|-----------------|
 /// | Header |      i32     |     Header      |
 /// ```
-/// 
+///
 /// Header is the message header, See [Header](struct.Header.html).
 /// The error code is an errno number reported by the kernel.
 /// The original header is the header of the message that caused this error.
@@ -201,30 +192,34 @@ pub(crate) struct ErrorMessage {
 }
 
 impl ErrorMessage {
-    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, ErrorMessage)>
-    {
+    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, ErrorMessage)> {
         let size = 4 + Header::HEADER_SIZE;
         if data.len() < size {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
         let code = i32::unpack_unchecked(data);
         let (_, original) = Header::unpack_with_size(&data[4..])?;
-        Ok((size,
-            ErrorMessage { header: header, code: code,
-                original_header: original }))
+        Ok((
+            size,
+            ErrorMessage {
+                header: header,
+                code: code,
+                original_header: original,
+            },
+        ))
     }
 }
 
 /// Netlink data message
-/// 
+///
 /// ```text
 /// | header |    data     | padding |
 /// |--------|-------------|---------|
 /// | Header | u8 * length |         |
 /// ```
-/// 
+///
 /// Header is the message header, See [Header](struct.Header.html).
-/// The data is 4 byte aligned. 
+/// The data is 4 byte aligned.
 pub struct Message {
     /// Message header
     pub header: Header,
@@ -234,15 +229,18 @@ pub struct Message {
 
 impl Message {
     /// Unpack Message from byte slice and message header
-    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, Message)>
-    {
+    pub fn unpack(data: &[u8], header: Header) -> Result<(usize, Message)> {
         let size = header.data_length();
         let aligned_size = netlink_align(size);
         if data.len() < aligned_size {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
-        Ok((aligned_size,
-            Message { header: header, data: (&data[..size]).to_vec() }
+        Ok((
+            aligned_size,
+            Message {
+                header: header,
+                data: (&data[..size]).to_vec(),
+            },
         ))
     }
 
@@ -262,21 +260,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unpack_header()
-    {
+    fn unpack_header() {
         let data = [
             0x12, 0x00, 0x00, 0x00, // size
             0x00, 0x10, // identifier
             0x10, 0x00, // flags
             0x01, 0x00, 0x00, 0x00, // sequence
-            0x04, 0x00, 0x00]; // pid
+            0x04, 0x00, 0x00,
+        ]; // pid
         assert!(Header::unpack(&data).is_err());
         let data = [
             0x12, 0x00, 0x00, 0x00, // size
             0x00, 0x10, // identifier
             0x10, 0x00, // flags
             0x01, 0x00, 0x00, 0x00, // sequence
-            0x04, 0x00, 0x00, 0x00]; // pid
+            0x04, 0x00, 0x00, 0x00,
+        ]; // pid
         let (used, header) = Header::unpack_with_size(&data).unwrap();
         assert_eq!(used, Header::HEADER_SIZE);
         assert_eq!(header.length, 18u32);
@@ -289,8 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn pack_header()
-    {
+    fn pack_header() {
         let header = Header {
             length: 18,
             identifier: 0x1000,
@@ -308,20 +306,21 @@ mod tests {
             0x00, 0x10, // identifier
             0x10, 0x00, // flags
             0x01, 0x00, 0x00, 0x00, // sequence
-            0x04, 0x00, 0x00, 0x00]; // pid
+            0x04, 0x00, 0x00, 0x00,
+        ]; // pid
         assert_eq!(&buffer[..data.len()], data);
     }
 
     #[test]
-    fn unpack_data_message()
-    {
+    fn unpack_data_message() {
         let data = [
             0x12, 0x00, 0x00, 0x00, // size
             0x00, 0x10, // identifier
             0x10, 0x00, // flags
             0x01, 0x00, 0x00, 0x00, // sequence
             0x04, 0x00, 0x00, 0x00, // pid
-            0xaa, 0x55, 0x00, 0x00]; // data with padding
+            0xaa, 0x55, 0x00, 0x00,
+        ]; // data with padding
         let (used, header) = Header::unpack_with_size(&data).unwrap();
         assert_eq!(used, Header::HEADER_SIZE);
         assert_eq!(header.length, 18u32);
@@ -340,8 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn pack_data_message()
-    {
+    fn pack_data_message() {
         let message = Message {
             header: Header {
                 length: 18,
@@ -363,13 +361,13 @@ mod tests {
             0x10, 0x00, // flags
             0x78, 0x56, 0x34, 0x12, // sequence
             0x01, 0x00, 0x00, 0x00, // pid
-            0xaa, 0x55, 0xff, 0xff]; // padded data
+            0xaa, 0x55, 0xff, 0xff,
+        ]; // padded data
         assert_eq!(&buffer[..data.len()], data);
     }
 
     #[test]
-    fn unpack_error_message()
-    {
+    fn unpack_error_message() {
         let data = [
             0x24, 0x00, 0x00, 0x00, // size
             0x00, 0x10, // identifier
@@ -382,7 +380,7 @@ mod tests {
             0x11, 0x00, // flags
             0xff, 0xff, 0xff, 0xff, // sequence
             0x05, 0x00, 0x00, 0x00, // pid
-            ];
+        ];
         let (used, header) = Header::unpack_with_size(&data).unwrap();
         assert_eq!(used, Header::HEADER_SIZE);
         assert_eq!(header.length, 36u32);

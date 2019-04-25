@@ -1,12 +1,13 @@
 //! Netlink core parts
 
-#[macro_use] mod helpers;
-mod hardware_address;
-mod pack;
-mod system;
+#[macro_use]
+mod helpers;
 mod attribute;
+mod hardware_address;
 mod message;
+mod pack;
 mod socket;
+mod system;
 
 extended_enum!(Protocol, i32,
     Route => 0,
@@ -33,16 +34,17 @@ extended_enum!(Protocol, i32,
     SMC => 21
 );
 
-pub use self::socket::{Socket, SendMessage};
-pub use self::attribute::{Attribute, nested_attribute_array};
-pub use self::message::{MessageFlags, MessageMode, Header, Message};
+pub use self::attribute::{nested_attribute_array, Attribute};
 pub use self::hardware_address::HardwareAddress;
-pub use self::pack::{NativeUnpack, NativePack, pack_vec};
+pub use self::message::{Header, Message, MessageFlags, MessageMode};
+pub use self::pack::{pack_vec, NativePack, NativeUnpack};
+pub use self::socket::{SendMessage, Socket};
 
 /// A trait for converting a value from one type to another.
 /// Any failure in converting will return None.
 pub trait ConvertFrom<T: Sized>
-    where Self: Sized
+where
+    Self: Sized,
 {
     /// Convert value from one type to the other, returning None if conversion failed
     fn convert_from(value: T) -> Option<Self>;

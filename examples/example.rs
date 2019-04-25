@@ -2,30 +2,26 @@ extern crate netlink_rust;
 
 use netlink_rust as netlink;
 
-use netlink::{Socket, Protocol, Message};
-use netlink::route;
-use netlink::route::{InterfaceInformationMessage, AddressFamilyAttribute};
 use netlink::generic;
+use netlink::route;
+use netlink::route::{AddressFamilyAttribute, InterfaceInformationMessage};
+use netlink::{Message, Protocol, Socket};
 
-fn handle_message(message: &Message)
-{
+fn handle_message(message: &Message) {
     if message.header.identifier == route::FamilyId::NewLink {
-        let (_, msg) = InterfaceInformationMessage::unpack(&message.data)
-            .unwrap();
+        let (_, msg) = InterfaceInformationMessage::unpack(&message.data).unwrap();
         for attr in msg.attributes {
             if attr.identifier == AddressFamilyAttribute::InterfaceName {
                 let name = attr.as_string().unwrap();
                 println!("{}", name);
             }
         }
-    }
-    else {
+    } else {
         println!("Header: {}", message.header);
     }
 }
 
-fn get_network_interfaces(socket: &mut Socket)
-{
+fn get_network_interfaces(socket: &mut Socket) {
     {
         let tx_msg = route::Message::new(route::FamilyId::GetLink);
         socket.send_message(&tx_msg).unwrap();
@@ -51,12 +47,20 @@ fn main() {
     }
     println!("----------------------------------------------------------------");
     match generic::Family::from_name(&mut gen_socket, "nl80211") {
-        Ok(id) => { println!("Found nl80211, {}", id); },
-        Err(_) => { println!("Failed to find nl80211"); },
+        Ok(id) => {
+            println!("Found nl80211, {}", id);
+        }
+        Err(_) => {
+            println!("Failed to find nl80211");
+        }
     }
     println!("----------------------------------------------------------------");
     match generic::Family::from_name(&mut gen_socket, "HELLO_THERE") {
-        Ok(id) => { println!("Found HELLO_THERE, {}", id); },
-        Err(_) => { println!("Failed to find HELLO_THERE"); },
+        Ok(id) => {
+            println!("Found HELLO_THERE, {}", id);
+        }
+        Err(_) => {
+            println!("Failed to find HELLO_THERE");
+        }
     }
 }

@@ -1,10 +1,10 @@
-/// Creates an enum with various traits. 
+/// Creates an enum with various traits.
 /// The first key-value pair is the default used if any conversion would fail.
 #[macro_export]
 macro_rules! extended_enum_default {
     ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
       $( $var:ident => $val:expr ),+ $(,)* ) => (
-        
+
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
             $var_def,
@@ -58,12 +58,12 @@ macro_rules! extended_enum_default {
     );
 }
 
-/// Creates an enum with various traits. 
+/// Creates an enum with various traits.
 /// The first key-value pair is the default used if any conversion would fail.
 #[macro_export]
 macro_rules! extended_enum {
     ( $name:ident, $ty:ty, $( $var:ident => $val:expr ),+ $(,)* ) => (
-        
+
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
             $($var,)*
