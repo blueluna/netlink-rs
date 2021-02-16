@@ -2,13 +2,18 @@
 /// The first key-value pair is the default used if any conversion would fail.
 #[macro_export]
 macro_rules! extended_enum_default {
-    ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),+ $(,)* ) => (
+    ( $(#[$outer:meta])* $name:ident, $ty:ty, $(#[$inner_def:meta])* $var_def:ident => $val_def:expr,
+    $( $(#[$inner:meta])* $var:ident => $val:expr ),+ $(,)* ) => (
 
+        $(#[$outer])*
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
+            $(#[$inner_def])*
             $var_def,
-            $($var,)*
+            $(
+                $(#[$inner])*
+                $var,
+            )*
         }
 
         impl From<$ty> for $name {
@@ -62,11 +67,15 @@ macro_rules! extended_enum_default {
 /// The first key-value pair is the default used if any conversion would fail.
 #[macro_export]
 macro_rules! extended_enum {
-    ( $name:ident, $ty:ty, $( $var:ident => $val:expr ),+ $(,)* ) => (
+    ( $(#[$outer:meta])* $name:ident, $ty:ty, $( $(#[$inner:meta])* $var:ident => $val:expr ),+ $(,)* ) => (
 
+        $(#[$outer])*
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
-            $($var,)*
+            $(
+                $(#[$inner])*
+                $var,
+            )*
         }
 
         impl From<$ty> for $name {

@@ -5,11 +5,16 @@ use libc;
 use core::{pack_vec, Attribute, ConvertFrom, MessageFlags, NativePack, NativeUnpack, SendMessage};
 use errors::{NetlinkError, NetlinkErrorKind, Result};
 
-/// Netlinkt route command
-extended_enum!(FamilyId, u16,
+extended_enum!(
+    /// Netlinkt route command
+    FamilyId, u16,
+    /// Link added
     NewLink => 16,
+    /// Link removed
     DeleteLink => 17,
+    /// Get link
     GetLink => 18,
+    /// Set link
     SetLink => 19,
 );
 

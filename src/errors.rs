@@ -61,16 +61,7 @@ impl fmt::Display for Error {
 }
 
 impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::Io(ref err) => err.description(),
-            Error::Utf8(ref err) => err.description(),
-            Error::FromUtf8(ref err) => err.description(),
-            Error::Netlink(ref err) => err.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
             Error::Io(ref err) => Some(err),
             Error::Utf8(ref err) => Some(err),
