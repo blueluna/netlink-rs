@@ -148,6 +148,9 @@ impl fmt::Display for Header {
 }
 
 impl NativePack for Header {
+    fn pack_size(&self) -> usize {
+        Self::HEADER_SIZE
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         self.length.pack_unchecked(buffer);
         self.identifier.pack_unchecked(&mut buffer[4..]);

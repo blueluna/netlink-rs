@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io;
-use std::mem::size_of;
+use std::mem::{self, size_of};
 use std::os::unix::io::{AsRawFd, RawFd};
 
 use libc;
@@ -106,28 +106,31 @@ impl Socket {
     fn message_header(&mut self, iov: &mut [libc::iovec]) -> libc::msghdr {
         let addr_ptr = &mut self.peer as *mut system::Address;
         #[cfg(not(target_env = "musl"))]
-        let iov_len = iov.len();
-        #[cfg(target_env = "musl")]
-        let iov_len = iov.len() as libc::c_int;
-        #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
-        let hdr = libc::msghdr {
-            msg_iovlen: iov_len,
-            msg_iov: iov.as_mut_ptr(),
-            msg_namelen: size_of::<system::Address>() as u32,
-            msg_name: addr_ptr as *mut libc::c_void,
-            msg_flags: 0,
-            msg_controllen: 0,
-            msg_control: 0 as *mut libc::c_void,
+        let hdr = {
+            let iov_len = iov.len();
+            let hdr = libc::msghdr {
+                msg_iovlen: iov_len,
+                msg_iov: iov.as_mut_ptr(),
+                msg_namelen: size_of::<system::Address>() as u32,
+                msg_name: addr_ptr as *mut libc::c_void,
+                msg_flags: 0,
+                msg_controllen: 0,
+                msg_control: 0 as *mut libc::c_void,
+            };
+            hdr
         };
-        #[cfg(not(all(target_env = "musl", target_pointer_width = "64")))]
-        let hdr = libc::msghdr {
-            msg_iovlen: iov_len,
-            msg_iov: iov.as_mut_ptr(),
-            msg_namelen: size_of::<system::Address>() as u32,
-            msg_name: addr_ptr as *mut libc::c_void,
-            msg_flags: 0,
-            msg_controllen: 0,
-            msg_control: 0 as *mut libc::c_void,
+        #[cfg(target_env = "musl")]
+        let hdr = {
+            let iov_len = iov.len() as libc::c_int;
+            let mut hdr: libc::msghdr = unsafe { mem::zeroed() };
+            hdr.msg_iovlen = iov_len;
+            hdr.msg_iov = iov.as_mut_ptr();
+            hdr.msg_namelen = size_of::<system::Address>() as u32;
+            hdr.msg_name = addr_ptr as *mut libc::c_void;
+            hdr.msg_flags = 0;
+            hdr.msg_controllen = 0;
+            hdr.msg_control = 0 as *mut libc::c_void;
+            hdr
         };
         hdr
     }
@@ -145,22 +148,14 @@ impl Socket {
             sequence: self.sequence_next,
             pid: self.local.pid,
         };
-        {
-            let _slice = hdr.pack(&mut self.send_buffer[..hdr_size])?;
-        }
-
-        let mut iov = [libc::iovec {
-            iov_base: self.send_buffer.as_mut_ptr() as *mut libc::c_void,
-            iov_len: size,
-        }];
-
-        let msg_header = self.message_header(&mut iov);
+        let _slice = hdr.pack(&mut self.send_buffer[..hdr_size])?;
 
         self.sent
             .insert(self.sequence_next, MessageMode::from(flags));
         self.sequence_next += 1;
 
-        Ok(system::send_message(self.socket, &msg_header, 0)?)
+        let sent_size = system::send(self.socket, &self.send_buffer[..size], 0)?;
+        Ok(sent_size)
     }
 
     fn receive_bytes(&mut self) -> Result<usize> {
@@ -168,6 +163,7 @@ impl Socket {
             iov_base: self.receive_buffer.as_mut_ptr() as *mut libc::c_void,
             iov_len: self.page_size,
         }];
+
         let mut msg_header = self.message_header(&mut iov);
         let result = system::receive_message(self.socket, &mut msg_header);
         match result {
@@ -177,7 +173,9 @@ impl Socket {
                 }
                 Err(err.into())
             }
-            Ok(bytes) => Ok(bytes),
+            Ok(bytes) => {
+                Ok(bytes)
+            },
         }
     }
 
@@ -231,6 +229,7 @@ impl Socket {
         let mut pos = 0;
         while pos < bytes {
             let (used, header) = Header::unpack_with_size(&data[pos..])?;
+
             pos = pos + used;
             if !header.check_pid(self.local.pid) {
                 return Err(NetlinkError::new(NetlinkErrorKind::InvalidValue).into());

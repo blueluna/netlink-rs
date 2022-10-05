@@ -28,7 +28,7 @@ pub trait NativeUnpack: Sized {
         if buffer.len() < size {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
-        Ok((mem::size_of::<Self>(), Self::unpack_unchecked(buffer)))
+        Ok((size, Self::unpack_unchecked(buffer)))
     }
     /// Unpack byte slice into value without failing
     fn unpack_unchecked(buffer: &[u8]) -> Self;
@@ -118,10 +118,12 @@ impl NativeUnpack for Vec<u32> {
 }
 
 /// Pack value into byte slice, using native endian
-pub trait NativePack: Sized {
+pub trait NativePack : Sized {
+    ///
+    fn pack_size(&self) -> usize;
     /// Pack value into byte slice, returning the unused part of the slice
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
-        let type_size = mem::size_of::<Self>();
+        let type_size = self.pack_size();
         if buffer.len() < type_size {
             return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
         }
@@ -133,56 +135,67 @@ pub trait NativePack: Sized {
 }
 
 impl NativePack for u8 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         buffer[0] = *self;
     }
 }
 impl NativePack for i8 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         buffer[0] = *self as u8;
     }
 }
 impl NativePack for u16 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u16(buffer, *self);
     }
 }
 impl NativePack for i16 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i16(buffer, *self);
     }
 }
 impl NativePack for u32 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u32(buffer, *self);
     }
 }
 impl NativePack for i32 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i32(buffer, *self);
     }
 }
 impl NativePack for u64 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u64(buffer, *self);
     }
 }
 impl NativePack for i64 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i64(buffer, *self);
     }
 }
 impl NativePack for f32 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_f32(buffer, *self);
     }
 }
 impl NativePack for f64 {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_f64(buffer, *self);
     }
 }
 impl NativePack for HardwareAddress {
+    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         unsafe {
             ptr::copy_nonoverlapping(self.as_ptr(), buffer.as_mut_ptr(), 6);
@@ -190,6 +203,9 @@ impl NativePack for HardwareAddress {
     }
 }
 impl NativePack for Vec<u8> {
+    fn pack_size(&self) -> usize {
+        self.len()
+    }
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let size = self.len();
         if buffer.len() < size {
@@ -205,15 +221,11 @@ impl NativePack for Vec<u8> {
 
 /// Pack a vector of values into byte slice
 pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>) -> Result<usize> {
-    let type_size = mem::size_of::<T>();
-    let size = type_size * v.len();
-    if buffer.len() < size {
-        return Err(NetlinkError::new(NetlinkErrorKind::NotEnoughData).into());
-    }
-    let mut pos = 0usize;
+    let mut size = 0usize;
+    let mut slice = buffer;
     for i in v {
-        i.pack_unchecked(&mut buffer[pos..]);
-        pos += type_size;
+        slice = i.pack( slice)?;
+        size += i.pack_size();
     }
     Ok(size)
 }

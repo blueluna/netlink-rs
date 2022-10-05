@@ -174,6 +174,9 @@ impl Attribute {
 }
 
 impl NativePack for Attribute {
+    fn pack_size(&self) -> usize {
+        self.total_len()
+    }
     fn pack<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a mut [u8]> {
         let length = self.total_len() as u16;
         let slice = length.pack(buffer)?;

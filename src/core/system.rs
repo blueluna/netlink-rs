@@ -75,3 +75,7 @@ pub fn send_message(socket: RawFd, header: &libc::msghdr, flags: i32) -> io::Res
 pub fn receive_message(socket: RawFd, header: &mut libc::msghdr) -> io::Result<usize> {
     Ok(ccall!(libc::recvmsg(socket, header as *mut libc::msghdr, 0)) as usize)
 }
+
+pub fn send(socket: RawFd, data: &[u8], flags: i32) -> io::Result<usize> {
+    Ok(ccall!(libc::send(socket, data.as_ptr() as *const libc::c_void, data.len(), flags)) as usize)
+}

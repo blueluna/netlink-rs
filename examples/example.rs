@@ -35,6 +35,7 @@ fn get_network_interfaces(socket: &mut Socket) {
 fn main() {
     let mut gen_socket = Socket::new(Protocol::Generic).unwrap();
     let mut rt_socket = Socket::new(Protocol::Route).unwrap();
+
     println!("----------------------------------------------------------------");
     println!("get_network_interfaces");
     println!("----------------------------------------------------------------");
