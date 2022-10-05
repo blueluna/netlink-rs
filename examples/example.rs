@@ -2,10 +2,10 @@ extern crate netlink_rust;
 
 use netlink_rust as netlink;
 
-use netlink::generic;
-use netlink::route;
-use netlink::route::{AddressFamilyAttribute, InterfaceInformationMessage};
-use netlink::{Message, Protocol, Socket};
+use crate::netlink::generic;
+use crate::netlink::route;
+use crate::netlink::route::{AddressFamilyAttribute, InterfaceInformationMessage};
+use crate::netlink::{Message, Protocol, Socket};
 
 fn handle_message(message: &Message) {
     if message.header.identifier == route::FamilyId::NewLink {

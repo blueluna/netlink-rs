@@ -3,9 +3,9 @@ use std::ptr;
 
 use byteorder::{ByteOrder, NativeEndian};
 
-use core::hardware_address::HardwareAddress;
-use errors::Result;
-use errors::{NetlinkError, NetlinkErrorKind};
+use crate::core::hardware_address::HardwareAddress;
+use crate::errors::Result;
+use crate::errors::{NetlinkError, NetlinkErrorKind};
 
 #[inline]
 pub(crate) fn slice_copy(src: &[u8], dst: &mut [u8], length: usize) {

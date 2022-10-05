@@ -7,6 +7,7 @@ readme = "README.md"
 license="MIT"
 repository="https://github.com/blueluna/netlink-rs"
 keywords = ["netlink"]
+edition = "2018"
 
 [dependencies]
 bitflags =  "1.0"

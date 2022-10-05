@@ -1,8 +1,9 @@
-use errors::{NetlinkError, NetlinkErrorKind, Result};
+use bitflags::bitflags;
+use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
 use std::fmt;
 use std::mem::size_of;
 
-use core::pack::{NativePack, NativeUnpack};
+use crate::core::pack::{NativePack, NativeUnpack};
 
 bitflags! {
     /// Message flags

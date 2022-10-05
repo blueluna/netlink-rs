@@ -2,10 +2,10 @@ use std::ffi::{CStr, CString};
 use std::mem;
 use std::str;
 
-use core::hardware_address::HardwareAddress;
-use core::message::netlink_padding;
-use core::pack::{NativePack, NativeUnpack};
-use errors::{NetlinkError, NetlinkErrorKind, Result};
+use crate::core::hardware_address::HardwareAddress;
+use crate::core::message::netlink_padding;
+use crate::core::pack::{NativePack, NativeUnpack};
+use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
 
 /// Parsing an array of nested attributes
 ///

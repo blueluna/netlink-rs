@@ -5,14 +5,14 @@ use std::os::unix::io::{AsRawFd, RawFd};
 
 use libc;
 
-use errors::{NetlinkError, NetlinkErrorKind, Result};
+use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
 
-use core::message::{
+use crate::core::message::{
     netlink_align, ErrorMessage, Header, Message, MessageFlags, MessageMode, Messages,
 };
-use core::pack::{NativePack, NativeUnpack};
-use core::system;
-use core::Protocol;
+use crate::core::pack::{NativePack, NativeUnpack};
+use crate::core::system;
+use crate::core::Protocol;
 
 /// Trait for message to be sent by the socket
 pub trait SendMessage {

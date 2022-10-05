@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use netlink_rust as netlink;
 
-use netlink::{Protocol, Socket};
+use crate::netlink::{Protocol, Socket};
 use std::collections::HashMap;
 
 use mio::unix::EventedFd;

@@ -2,8 +2,8 @@
 
 use libc;
 
-use core::{pack_vec, Attribute, ConvertFrom, MessageFlags, NativePack, NativeUnpack, SendMessage};
-use errors::{NetlinkError, NetlinkErrorKind, Result};
+use crate::core::{pack_vec, Attribute, ConvertFrom, MessageFlags, NativePack, NativeUnpack, SendMessage};
+use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
 
 extended_enum!(
     /// Netlinkt route command
@@ -149,7 +149,7 @@ impl InterfaceInformationMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::{Protocol, Socket};
+    use crate::core::{Protocol, Socket};
 
     #[test]
     fn route_get_link() {

@@ -4,10 +4,10 @@ use std::fmt;
 
 use std::convert::{From, Into};
 
-use errors::{NetlinkError, NetlinkErrorKind, Result};
+use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
 
-use core;
-use core::{Attribute, ConvertFrom, MessageFlags, MessageMode, NativePack, SendMessage};
+use crate::core;
+use crate::core::{Attribute, ConvertFrom, MessageFlags, MessageMode, NativePack, SendMessage};
 
 extended_enum!(FamilyId, u16,
     Control => 16,
