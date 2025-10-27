@@ -2,7 +2,9 @@
 
 use libc;
 
-use crate::core::{pack_vec, Attribute, ConvertFrom, MessageFlags, NativePack, NativeUnpack, SendMessage};
+use crate::core::{
+    pack_vec, Attribute, ConvertFrom, MessageFlags, NativePack, NativeUnpack, SendMessage,
+};
 use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
 
 extended_enum!(
