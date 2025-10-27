@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io;
-use std::mem::{self, size_of};
+use std::mem::size_of;
 use std::os::unix::io::{AsRawFd, RawFd};
 
 use libc;
@@ -173,9 +173,7 @@ impl Socket {
                 }
                 Err(err.into())
             }
-            Ok(bytes) => {
-                Ok(bytes)
-            },
+            Ok(bytes) => Ok(bytes),
         }
     }
 

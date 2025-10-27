@@ -118,7 +118,7 @@ impl NativeUnpack for Vec<u32> {
 }
 
 /// Pack value into byte slice, using native endian
-pub trait NativePack : Sized {
+pub trait NativePack: Sized {
     ///
     fn pack_size(&self) -> usize;
     /// Pack value into byte slice, returning the unused part of the slice
@@ -135,67 +135,89 @@ pub trait NativePack : Sized {
 }
 
 impl NativePack for u8 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         buffer[0] = *self;
     }
 }
 impl NativePack for i8 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         buffer[0] = *self as u8;
     }
 }
 impl NativePack for u16 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u16(buffer, *self);
     }
 }
 impl NativePack for i16 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i16(buffer, *self);
     }
 }
 impl NativePack for u32 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u32(buffer, *self);
     }
 }
 impl NativePack for i32 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i32(buffer, *self);
     }
 }
 impl NativePack for u64 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_u64(buffer, *self);
     }
 }
 impl NativePack for i64 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_i64(buffer, *self);
     }
 }
 impl NativePack for f32 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_f32(buffer, *self);
     }
 }
 impl NativePack for f64 {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         NativeEndian::write_f64(buffer, *self);
     }
 }
 impl NativePack for HardwareAddress {
-    fn pack_size(&self) -> usize { mem::size_of::<Self>() }
+    fn pack_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
     fn pack_unchecked(&self, buffer: &mut [u8]) {
         unsafe {
             ptr::copy_nonoverlapping(self.as_ptr(), buffer.as_mut_ptr(), 6);
@@ -224,7 +246,7 @@ pub fn pack_vec<T: NativePack>(buffer: &mut [u8], v: &Vec<T>) -> Result<usize> {
     let mut size = 0usize;
     let mut slice = buffer;
     for i in v {
-        slice = i.pack( slice)?;
+        slice = i.pack(slice)?;
         size += i.pack_size();
     }
     Ok(size)

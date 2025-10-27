@@ -1,5 +1,5 @@
-use bitflags::bitflags;
 use crate::errors::{NetlinkError, NetlinkErrorKind, Result};
+use bitflags::bitflags;
 use std::fmt;
 use std::mem::size_of;
 
