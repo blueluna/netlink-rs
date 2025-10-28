@@ -7,6 +7,7 @@ use crate::core::pack::{NativePack, NativeUnpack};
 
 bitflags! {
     /// Message flags
+    #[derive(Clone, Copy, PartialEq, PartialOrd)]
     pub struct MessageFlags: u16 {
         /// Request message
         const REQUEST     = 0x0001;

@@ -8,10 +8,9 @@ use netlink_rust as netlink;
 
 use crate::netlink::{Protocol, Socket};
 use std::collections::HashMap;
-
-use mio::unix::EventedFd;
-use mio::{Events, Poll, PollOpt, Ready, Token};
-use std::os::unix::io::AsRawFd;
+use std::os::fd::AsRawFd;
+use mio::{Events, Interest, Poll, Token};
+use mio::unix::SourceFd;
 
 fn parse_uevent(message: &str) -> HashMap<String, String> {
     let mut arguments = HashMap::new();
@@ -56,19 +55,15 @@ fn receive_messages(socket: &mut Socket) {
 
 fn main() {
     const NETLINK: Token = Token(1);
-    let poll = Poll::new().unwrap();
+    let mut poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(1024);
+
     let timeout = Duration::from_millis(500);
     // When listening to uevents we need to provide the multicast group 1
     let mut socket = Socket::new_multicast(Protocol::KObjectUevent, 1).unwrap();
     // register socket in event loop
-    poll.register(
-        &EventedFd(&socket.as_raw_fd()),
-        NETLINK,
-        Ready::readable(),
-        PollOpt::edge(),
-    )
-    .unwrap();
+    poll.registry()
+        .register(&mut SourceFd(&socket.as_raw_fd()), NETLINK, Interest::READABLE).unwrap();
     loop {
         poll.poll(&mut events, Some(timeout)).unwrap();
         for event in events.iter() {
